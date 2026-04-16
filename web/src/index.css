@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* E-BALADIYA logo: royal blue primary, yellow accent, white foreground */
+    --background: 0 0% 100%;
+    --foreground: 221 70% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 221 70% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 70% 20%;
+    --primary: 221 70% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 45 100% 96%;
+    --secondary-foreground: 221 70% 25%;
+    --muted: 221 30% 96%;
+    --muted-foreground: 221 20% 45%;
+    --accent: 45 100% 50%;
+    --accent-foreground: 221 70% 20%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 221 30% 90%;
+    --input: 221 30% 90%;
+    --ring: 221 70% 35%;
+    --radius: 0.625rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 221 70% 25%;
+    --sidebar-primary: 221 70% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 45 100% 94%;
+    --sidebar-accent-foreground: 221 70% 25%;
+    --sidebar-border: 221 25% 91%;
+    --sidebar-ring: 45 100% 50%;
+  }
+
+  .dark {
+    --background: 221 50% 8%;
+    --foreground: 0 0% 98%;
+    --card: 221 45% 11%;
+    --card-foreground: 0 0% 98%;
+    --popover: 221 45% 11%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 221 70% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 45 80% 25%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 221 30% 18%;
+    --muted-foreground: 221 20% 65%;
+    --accent: 45 100% 50%;
+    --accent-foreground: 221 70% 15%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 221 30% 20%;
+    --input: 221 30% 20%;
+    --ring: 45 100% 50%;
+    --sidebar-background: 221 55% 12%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 45 100% 50%;
+    --sidebar-primary-foreground: 221 70% 15%;
+    --sidebar-accent: 221 40% 20%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 221 30% 20%;
+    --sidebar-ring: 45 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

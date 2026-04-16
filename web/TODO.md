@@ -1,0 +1,1 @@
+# Task: Remove Performance Summary from Employee interface\n\n## Steps:\n1. [x] Understand files and create plan ✅\n2. [ ] Remove the Performance Summary Card section from src/sections/EmployeeDashboard.tsx\n3. [ ] Verify removal and test the dashboard\n4. [ ] Complete task

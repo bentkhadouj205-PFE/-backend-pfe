@@ -1,0 +1,39 @@
+name: pfe_app
+description: "A new Flutter project."
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # UI
+  cupertino_icons: ^1.0.8
+  
+  # Auth & Biométrie
+  local_auth: ^2.1.8
+  local_auth_android: ^1.0.34
+  local_auth_ios: ^1.1.6
+  local_auth_windows: ^1.0.11
+  
+  # HTTP & Storage
+  http: ^1.6.0
+  shared_preferences: ^2.2.2
+  image_picker: ^1.0.4 # ← hadi ll (gallery access)
+  flutter_secure_storage: ^9.0.0  # ← hadi ll  (sécurité email/password)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/logoo.png
