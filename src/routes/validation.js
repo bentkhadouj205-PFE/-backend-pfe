@@ -9,211 +9,126 @@ dotenv.config();
 
 const router = express.Router();
 
-
-
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://uvmruxcjpgovdrwvykyn.supabase.co';
+const STORAGE_URL  = `${SUPABASE_URL}/storage/v1/object/public`;
 
-// Helper to build public storage URL
-const storageUrl = (bucket, path) => {
+// Build storage URL — handles both Supabase paths and local paths
+const toStorageUrl = (bucket, path) => {
   if (!path) return null;
-  if (path.startsWith('http')) return path;
-
-  const baseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '') || 'https://uvmruxcjpgovdrwvykyn.supabase.co';
-  return `${baseUrl}/storage/v1/object/public/${bucket}/${path}`;
+  if (path.startsWith('http')) return path;                    // already full URL
+  if (path.startsWith('C:\\') || path.startsWith('D:\\') ||
+      path.startsWith('/Users') || path.startsWith('/home')) {
+    return null;                                               // local path — can't serve
+  }
+  return `${STORAGE_URL}/${bucket}/${path}`;
 };
 
-// ── GET all requests with registry comparison ─────────────────────────────
+// ── GET all registration requests ─────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    console.log(' [VALIDATION] Fetching registration requests...');
+    console.log('📡 [VALIDATION] Fetching requests...');
     const { data: requests, error } = await supabase
       .from('demandes_inscription')
       .select('*')
       .order('date_demande', { ascending: false });
 
     if (error) {
-      console.error(' [VALIDATION] Supabase Query Error:', error.message);
+      console.error('❌ Supabase fetch error:', error.message);
       return res.status(500).json({ error: error.message });
     }
 
-    console.log(`[VALIDATION] Successfully retrieved ${requests.length} requests.`);
-
     const enriched = await Promise.all(requests.map(async (r) => {
-      // Find matching citizen by NIN (Registry check)
-      const { data: citizen, error: citizenError } = await supabase
+      // Find matching citizen in register.citizens by NIN
+      const { data: citizen } = await supabase
         .from('citizens')
-        .select('*')
+        .select('nom, prenom, nin, date_naissance, commune')
         .eq('nin', r.nin)
         .maybeSingle();
 
-      if (citizenError) {
-        console.warn(`[REGISTRY] Match failed for NIN ${r.nin}:`, citizenError.message);
-      }
-
       return {
-        id: r.id,
-        firstName: r.prenom || r.firstName,
-        lastName: r.nom || r.lastName,
-        nin: r.nin,
-        email: r.email,
-        dob: r.date_demande || r.created_at,
-        commune: r.commune,
-        address: r.adresse || r.address,
-        status: r.status,
-        rejectionReason: r.commentaire || r.rejection_reason,
-        cniScanPath: storageUrl('cni-scans', r.cni_recto_path || r.photo_cni_path),
-        selfiePath: storageUrl('selfies', r.selfie_path || r.photo_domicile_path),
+        id:              r.id,
+        firstName:       r.prenom,
+        lastName:        r.nom,
+        nin:             r.nin,
+        email:           r.email,
+        dob:             r.date_demande,
+        commune:         r.adresse,
+        address:         r.adresse,
+        status:          r.status,
+        rejectionReason: r.commentaire,
+        // CNI recto/verso + selfie from Supabase Storage
+        cniRectoPath:    toStorageUrl('cni-scans', r.cni_recto_path),
+        cniVersoPath:    toStorageUrl('cni-scans', r.cni_verso_path),
+        selfiePath:      toStorageUrl('selfies',   r.selfie_path),
+        // Registry comparison
         reg: {
-          firstName: citizen?.prenom ?? null,
-          lastName: citizen?.nom ?? null,
-          nin: citizen?.nin ?? null,
-          dob: citizen?.date_naissance ?? null,
-          commune: citizen?.commune ?? null,
+          firstName: citizen?.prenom         ?? null,
+          lastName:  citizen?.nom            ?? null,
+          nin:       citizen?.nin            ?? null,
+          dob:       citizen?.date_naissance ?? null,
+          commune:   citizen?.commune        ?? null,
         }
       };
     }));
 
     res.json({ data: enriched });
   } catch (err) {
-    console.error(' [VALIDATION] Fatal error:', err);
+    console.error('❌ Validation route error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── POST validate ─────────────────────────────────────────────────────────
+// ── POST validate — sends activation email ────────────────────────────────
 router.post('/:id/validate', async (req, res) => {
   const { id } = req.params;
-  
-  // 🛡️ [AUTH] Check for Authorization header
-  const authHeader = req.headers.authorization;
-  console.log(`📡 [VALIDATE] Auth Header: ${authHeader ? '✅ Present' : '❌ MISSING'}`);
-
-  if (!authHeader) {
-    return res.status(401).json({ error: 'No authorization header provided' });
-  }
-
-  const adminToken = authHeader.split(' ')[1];
   try {
-    // 🛡️ [AUTH] Verify Admin JWT (ensure it's an authorized agent)
-    // const decoded = jwt.verify(adminToken, process.env.JWT_SECRET); 
-    // console.log(`🛡️ [AUTH] Request by: ${decoded.email}`);
-
-    console.log(`📡 [VALIDATE] Processing request ${id}...`);
-    
-    const { data: request, error: fetchErr } = await supabase
+    console.log(`📡 [VALIDATE] Processing ID: ${id}`);
+    const { data: request, error } = await supabase
       .from('demandes_inscription')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (fetchErr || !request) {
-      console.error('❌ [VALIDATE] Fetch error:', fetchErr?.message);
+    if (error || !request) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    // ✅ [TOKEN] Generate and define the activation token CLEARLY
-    const generatedToken = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    // Generate activation token
+    const token = crypto.randomBytes(32).toString('hex');
 
-    const { error: updateErr } = await supabase
+    // Save token + update status
+    const { error: updateError } = await supabase
       .from('demandes_inscription')
-      .update({ 
-        status: 'termine',
-        activation_token: generatedToken,
-        commentaire: `EXPIRES:${expiresAt.toISOString()}` 
+      .update({
+        status:           'termine',
+        activation_token: token,
+        date_traitement:  new Date().toISOString(),
       })
       .eq('id', id);
 
-    if (updateErr) {
-      console.error('❌ [VALIDATE] Supabase Update Error:', updateErr);
-      throw new Error(updateErr.message);
+    if (updateError) {
+      console.error('❌ Update error:', updateError.message);
+      return res.status(500).json({ error: updateError.message });
     }
 
-    await sendActivationEmail(request.email, request.prenom, generatedToken);
+    // Send activation email with link
+    await sendActivationEmail(request.email, request.prenom, token);
+
     res.json({ success: true, message: 'Activation email sent' });
   } catch (err) {
-    console.error('❌ [VALIDATE] error:', err.message);
-    console.error('📜 [VALIDATE] stack:', err.stack);
+    console.error('❌ Validate error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── GET debug requests ───────────────────────────────────────────────────
-router.get('/debug/requests', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('demandes_inscription')
-      .select('id, email, prenom, status, activation_token, commentaire');
-    
-    if (error) throw error;
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── POST activate ─────────────────────────────────────────────────────────
-router.post('/activate', async (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ error: 'Token missing' });
-
-  try {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`🔍 [ACTIVATE] Attempt for token: ${token.substring(0, 10)}...`);
-
-    // 1. Find the request by token
-    const { data: request, error: findErr } = await supabase
-      .from('demandes_inscription')
-      .select('*')
-      .eq('activation_token', token)
-      .single();
-
-    if (findErr || !request) {
-      console.error('❌ [ACTIVATE] No match found in DB for this token.');
-      
-      // Log some context - is there ANY token?
-      const { data: others } = await supabase.from('demandes_inscription').select('email, activation_token').not('activation_token', 'is', null).limit(3);
-      console.log('📝 [DEBUG] Other active tokens in DB:', others);
-
-      return res.status(400).json({ error: 'Lien invalide ou déjà utilisé' });
-    }
-
-    console.log(`✅ [ACTIVATE] Match found! Email: ${request.email}`);
-
-    // 2. Check Expiry (if stored in commentaire)
-    if (request.commentaire && request.commentaire.startsWith('EXPIRES:')) {
-      const expiryStr = request.commentaire.replace('EXPIRES:', '');
-      const expiryDate = new Date(expiryStr);
-      if (expiryDate < new Date()) {
-        console.error('⏰ [ACTIVATE] Token expired');
-        return res.status(400).json({ error: 'Lien expiré (valide 24h)' });
-      }
-    }
-
-    // 2. Create the user account (or update if exists)
-    // NOTE: In a real app, you'd move data to the 'users' table here
-    console.log(`✅ [ACTIVATE] Activating user: ${request.email}`);
-
-    const { error: activateErr } = await supabase
-      .from('demandes_inscription')
-      .update({ status: 'active', activation_token: null })
-      .eq('id', request.id);
-
-    if (activateErr) throw activateErr;
-
-    res.json({ success: true, message: 'Compte activé avec succès' });
-  } catch (err) {
-    console.error(' [ACTIVATE] error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── POST reject ───────────────────────────────────────────────────────────
+// ── POST reject — sends rejection email ───────────────────────────────────
 router.post('/:id/reject', async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
-  if (!reason) return res.status(400).json({ error: 'Reason required' });
+
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ error: 'Rejection reason is required' });
+  }
 
   try {
     const { data: request, error } = await supabase
@@ -222,24 +137,84 @@ router.post('/:id/reject', async (req, res) => {
       .eq('id', id)
       .single();
 
-    if (error || !request) return res.status(404).json({ error: 'Request not found' });
-    if (request.status !== 'pending' && request.status !== 'en_attente') {
-      return res.status(400).json({ error: 'Request already processed' });
+    if (error || !request) {
+      return res.status(404).json({ error: 'Request not found' });
     }
 
-    const { error: updateErr } = await supabase
+    // Update status + save reason
+    const { error: updateError } = await supabase
       .from('demandes_inscription')
-      .update({ status: 'refuse', commentaire: reason })
+      .update({
+        status:          'refuse',
+        commentaire:     reason,
+        date_traitement: new Date().toISOString(),
+      })
       .eq('id', id);
 
-    if (updateErr) throw updateErr;
+    if (updateError) {
+      console.error('❌ Update error:', updateError.message);
+      return res.status(500).json({ error: updateError.message });
+    }
 
+    // Send rejection email
     await sendRejectionEmail(request.email, request.prenom, reason);
+
     res.json({ success: true, message: 'Rejection email sent' });
   } catch (err) {
-    console.error('Reject error:', err.message);
+    console.error('❌ Reject error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── GET verify-token — called by frontend/mobile after clicking link ──────
+router.get('/verify-token', async (req, res) => {
+  const { token } = req.query;
+
+  if (!token) {
+    return res.status(400).json({ valid: false, error: 'No token provided' });
+  }
+
+  try {
+    console.log(`🔍 [VERIFY-TOKEN] Checking token: ${token.substring(0, 10)}...`);
+    const { data, error } = await supabase
+      .from('demandes_inscription')
+      .select('id, email, prenom, nom, status, activation_token')
+      .eq('activation_token', token)
+      .single();
+
+    if (error || !data) {
+      console.error('❌ [VERIFY-TOKEN] Token not found or invalid');
+      return res.status(404).json({ valid: false, error: 'Token invalid or expired' });
+    }
+
+    // Update status to active and clear token
+    const { error: activateErr } = await supabase
+      .from('demandes_inscription')
+      .update({ 
+        status: 'active',
+        activation_token: null 
+      })
+      .eq('id', data.id);
+
+    if (activateErr) throw activateErr;
+
+    console.log(`✅ [VERIFY-TOKEN] Success for: ${data.email}`);
+    res.json({
+      valid:  true,
+      email:  data.email,
+      prenom: data.prenom,
+      nom:    data.nom,
+    });
+  } catch (err) {
+    console.error('❌ Verify token error:', err.message);
+    res.status(500).json({ valid: false, error: err.message });
+  }
+});
+
+// ── GET activate (Alternative GET link support) ──────────────────────────
+router.get('/activate/:token', async (req, res) => {
+    const { token } = req.params;
+    res.redirect(`/verification-success?token=${token}`);
 });
 
 export default router;
