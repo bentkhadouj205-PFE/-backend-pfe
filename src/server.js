@@ -125,10 +125,10 @@ io.on('connection', (socket) => {
     const role = userRole?.toLowerCase();
     if (role === 'municipal_agent' || role === 'municipal agent') {
       socket.join('agents_room');
-      console.log('✅ Municipal Agent rejoint agents_room:', userId);
+      console.log(' Municipal Agent rejoint agents_room:', userId);
     } else if (role === 'employee') {
       socket.join(`employee_${userId}`);
-      console.log('✅ Employe rejoint room:', `employee_${userId}`);
+      console.log('Employe rejoint room:', `employee_${userId}`);
     }
   }
 
@@ -292,16 +292,20 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ───────────── Routes ─────────────
+app.use('/api/validations', (req, res, next) => {
+  console.log('🚀 [ROUTE] /api/validations hit');
+  next();
+}, validationRoutes);
+
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api', demandeRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/pdf', pdfRoutes);
 app.use('/api/email', emailCertificateRoutes);
-app.use('/api/validations', validationRoutes);
+app.use('/api', demandeRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Baladiya Digital API — Supabase + Socket.IO' });
