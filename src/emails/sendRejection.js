@@ -1,14 +1,12 @@
-import sgMail from '@sendgrid/mail';
+import transporter from '../config/email.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
-
 const sendRejectionEmail = async (to, firstName, reason) => {
-  const msg = {
+  const mailOptions = {
+    from: `"Baladiya Support" <${process.env.EMAIL_FROM || 'noreply@baladiya.dz'}>`,
     to,
-    from: 'baladiyadigital27@gmail.com', // Must be a verified Sender Identity in SendGrid
     subject: 'Demande d\'inscription rejetée - Baladiya',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
@@ -26,11 +24,10 @@ const sendRejectionEmail = async (to, firstName, reason) => {
   };
 
   try {
-    await sgMail.send(msg);
-    console.log(`❌ Rejection email sent to ${to}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Rejection email sent to ${to} (ID: ${info.messageId})`);
   } catch (error) {
-    console.error('❌ SendGrid Error (Rejection):', error.message);
-    if (error.response) console.error(error.response.body);
+    console.error('❌ Email Error (Rejection):', error.message);
     throw error;
   }
 };
