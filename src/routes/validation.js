@@ -25,29 +25,29 @@ const storageUrl = (bucket, path) => {
 // ── GET all requests with registry comparison ─────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    console.log('🔍 [VALIDATION] Fetching registration requests...');
+    console.log(' [VALIDATION] Fetching registration requests...');
     const { data: requests, error } = await supabase
       .from('demandes_inscription')
       .select('*')
       .order('date_demande', { ascending: false });
 
     if (error) {
-      console.error('❌ [VALIDATION] Supabase Query Error:', error.message);
+      console.error(' [VALIDATION] Supabase Query Error:', error.message);
       return res.status(500).json({ error: error.message });
     }
 
-    console.log(`✅ [VALIDATION] Successfully retrieved ${requests.length} requests.`);
+    console.log(`[VALIDATION] Successfully retrieved ${requests.length} requests.`);
 
     const enriched = await Promise.all(requests.map(async (r) => {
       // Find matching citizen by NIN (Registry check)
       const { data: citizen, error: citizenError } = await supabase
         .from('citizens')
-        .select('id, nom, prenom, nin, date_naissance, commune, wilaya')
+        .select('*')
         .eq('nin', r.nin)
         .maybeSingle();
 
       if (citizenError) {
-        console.warn(`⚠️ Registry match failed for NIN ${r.nin}:`, citizenError.message);
+        console.warn(`⚠️ [REGISTRY] Match failed for NIN ${r.nin}:`, citizenError.message);
       }
 
       return {
@@ -56,7 +56,7 @@ router.get('/', async (req, res) => {
         lastName: r.nom || r.lastName,
         nin: r.nin,
         email: r.email,
-        dob: r.date_demande || r.created_at, // Use date_demande as DOB if no specific DOB column
+        dob: r.date_demande || r.created_at,
         commune: r.commune,
         address: r.adresse || r.address,
         status: r.status,
@@ -75,34 +75,36 @@ router.get('/', async (req, res) => {
 
     res.json({ data: enriched });
   } catch (err) {
-    console.error(' FATAL ERROR in /api/validations:', err);
-    res.status(500).json({ error: err.message, stack: err.stack });
+    console.error(' [VALIDATION] Fatal error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
 // ── POST validate ─────────────────────────────────────────────────────────
 router.post('/:id/validate', async (req, res) => {
   const { id } = req.params;
+  console.log(`📡 [VALIDATE] Processing request ${id}...`);
   try {
-    const { data: request, error } = await supabase
+    const { data: request, error: fetchErr } = await supabase
       .from('demandes_inscription')
       .select('*')
       .eq('id', id)
       .single();
 
-    if (error || !request) return res.status(404).json({ error: 'Request not found' });
-    if (request.status !== 'pending' && request.status !== 'en_attente') {
-      return res.status(400).json({ error: 'Request already processed' });
+    if (fetchErr || !request) {
+        console.error('❌ [VALIDATE] Fetch error:', fetchErr?.message);
+        return res.status(404).json({ error: 'Request not found' });
     }
-
-    const token = crypto.randomBytes(32).toString('hex');
 
     const { error: updateErr } = await supabase
       .from('demandes_inscription')
       .update({ status: 'termine' })
       .eq('id', id);
 
-    if (updateErr) throw updateErr;
+    if (updateErr) {
+        console.error('❌ [VALIDATE] Supabase Update Forbidden/Error:', updateErr);
+        throw new Error(updateErr.message);
+    }
 
     await sendActivationEmail(request.email, request.prenom, token);
     res.json({ success: true, message: 'Activation email sent' });
