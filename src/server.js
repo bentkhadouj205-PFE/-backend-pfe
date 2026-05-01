@@ -1,5 +1,13 @@
-// Force restart at 12:24
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from project root
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
 import express from 'express';
 import http from 'http';
 import path from 'path';
@@ -12,10 +20,6 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-//  Force load check
-console.log(" FORCE ENV LOAD - SMTP_USER is:", process.env.SMTP_USER);
-console.log(" DEBUG - SMTP_USER length:", process.env.SMTP_USER?.length);
-console.log(" DEBUG - SMTP_PASS length:", process.env.SMTP_PASS?.length);
 
 // ───────────── Import Routes ─────────────
 import notificationRoutes from './routes/notification.js';
@@ -49,9 +53,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
 }));
-
-// Handle preflight requests manually (Express 5 syntax)
-app.options('(.*)', cors());
 
 // ───────────── Socket.IO ─────────────
 const io = new Server(server, {
