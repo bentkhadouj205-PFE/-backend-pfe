@@ -16,28 +16,38 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://uvmruxcjpgovdrwvykyn.s
 // Helper to build public storage URL
 const storageUrl = (bucket, path) => {
   if (!path) return null;
-  // If already a full URL, return as-is
   if (path.startsWith('http')) return path;
-  // Build public URL
-  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+  
+  const baseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '') || 'https://uvmruxcjpgovdrwvykyn.supabase.co';
+  return `${baseUrl}/storage/v1/object/public/${bucket}/${path}`;
 };
 
 // ── GET all requests with registry comparison ─────────────────────────────
 router.get('/', async (req, res) => {
   try {
+    console.log('🔍 Fetching registration requests...');
     const { data: requests, error } = await supabase
       .from('demandes_inscription')
-      .select('*');
+      .select('id, nom, prenom, nin, email, adresse, date_naissance, commune, status, commentaire, photo_cni_path, photo_domicile_path');
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      console.error('❌ Supabase error (demandes_inscription):', error.message);
+      return res.status(500).json({ error: error.message });
+    }
+
+    console.log(`✅ Found ${requests.length} requests. Matching with citizens registry...`);
 
     const enriched = await Promise.all(requests.map(async (r) => {
       // Find matching citizen by NIN
-      const { data: citizen } = await supabase
+      const { data: citizen, error: citizenError } = await supabase
         .from('citizens')
         .select('id, nom, prenom, nin, date_naissance, commune, wilaya')
         .eq('nin', r.nin)
         .maybeSingle();
+
+      if (citizenError) {
+        console.warn(`⚠️ Registry match failed for NIN ${r.nin}:`, citizenError.message);
+      }
 
       return {
         id:              r.id,
