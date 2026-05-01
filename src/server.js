@@ -35,8 +35,8 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://192.168.1.6:5173',
-  'https://cane-canopener-glove.ngrok-free.app',
-  'https://cane-canopener-glove.ngrok-free.dev',
+  /\.ngrok-free\.app$/, // Allow any ngrok-free.app subdomain
+  /\.ngrok-free\.dev$/, // Allow any ngrok-free.dev subdomain
   process.env.FRONTEND_URL?.replace(/\/$/, ''), // Strip trailing slash for CORS safety
 ].filter(Boolean);
 
