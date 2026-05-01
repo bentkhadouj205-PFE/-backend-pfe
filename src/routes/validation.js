@@ -17,7 +17,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://uvmruxcjpgovdrwvykyn.s
 const storageUrl = (bucket, path) => {
   if (!path) return null;
   if (path.startsWith('http')) return path;
-  
+
   const baseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '') || 'https://uvmruxcjpgovdrwvykyn.supabase.co';
   return `${baseUrl}/storage/v1/object/public/${bucket}/${path}`;
 };
@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
     console.log('🔍 Fetching registration requests...');
     const { data: requests, error } = await supabase
       .from('demandes_inscription')
-      .select('id, nom, prenom, nin, email, adresse, date_naissance, commune, status, commentaire, photo_cni_path, photo_domicile_path');
+      .select('*');
 
     if (error) {
       console.error('❌ Supabase error (demandes_inscription):', error.message);
@@ -50,32 +50,33 @@ router.get('/', async (req, res) => {
       }
 
       return {
-        id:              r.id,
-        firstName:       r.prenom,
-        lastName:        r.nom,
-        nin:             r.nin,
-        email:           r.email,
-        dob:             r.date_naissance,
-        commune:         r.commune,
-        address:         r.adresse,
-        status:          r.status,
+        id: r.id,
+        firstName: r.prenom,
+        lastName: r.nom,
+        nin: r.nin,
+        email: r.email,
+        dob: r.date_naissance,
+        commune: r.commune,
+        address: r.adresse,
+        status: r.status,
         rejectionReason: r.commentaire || r.rejection_reason,
         // ✅ Generate public Supabase Storage URLs
-        cniScanPath:     storageUrl('cni-scans', r.cni_recto_path || r.photo_cni_path),
-        selfiePath:      storageUrl('selfies',   r.selfie_path || r.photo_domicile_path),
+        cniScanPath: storageUrl('cni-scans', r.cni_recto_path || r.photo_cni_path),
+        selfiePath: storageUrl('selfies', r.selfie_path || r.photo_domicile_path),
         reg: {
-          firstName:  citizen?.prenom          ?? null,
-          lastName:   citizen?.nom             ?? null,
-          nin:        citizen?.nin             ?? null,
-          dob:        citizen?.date_naissance  ?? null,
-          commune:    citizen?.commune         ?? null,
+          firstName: citizen?.prenom ?? null,
+          lastName: citizen?.nom ?? null,
+          nin: citizen?.nin ?? null,
+          dob: citizen?.date_naissance ?? null,
+          commune: citizen?.commune ?? null,
         }
       };
     }));
 
-    res.json({ data: enriched }); // Keeping the { data: ... } wrapper to match current frontend
+    res.json({ data: enriched }); 
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('💥 FATAL ERROR in /api/validations:', err);
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 
@@ -91,7 +92,7 @@ router.post('/:id/validate', async (req, res) => {
 
     if (error || !request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'pending' && request.status !== 'en_attente') {
-        return res.status(400).json({ error: 'Request already processed' });
+      return res.status(400).json({ error: 'Request already processed' });
     }
 
     const token = crypto.randomBytes(32).toString('hex');
@@ -126,7 +127,7 @@ router.post('/:id/reject', async (req, res) => {
 
     if (error || !request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'pending' && request.status !== 'en_attente') {
-        return res.status(400).json({ error: 'Request already processed' });
+      return res.status(400).json({ error: 'Request already processed' });
     }
 
     const { error: updateErr } = await supabase
