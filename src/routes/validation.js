@@ -35,43 +35,35 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    console.log(`✅ Found ${requests.length} requests. Matching with citizens registry...`);
+    console.log(`✅ Found ${requests.length} requests.`);
+    if (requests.length > 0) {
+      console.log('📝 RAW DATA KEYS (First Row):', Object.keys(requests[0]));
+      console.log('📝 RAW DATA SAMPLE:', requests[0]);
+    }
 
-    const enriched = await Promise.all(requests.map(async (r) => {
-      // Find matching citizen by NIN
-      const { data: citizen, error: citizenError } = await supabase
-        .from('citizens')
-        .select('id, nom, prenom, nin, date_naissance, commune, wilaya')
-        .eq('nin', r.nin)
-        .maybeSingle();
-
-      if (citizenError) {
-        console.warn(`⚠️ Registry match failed for NIN ${r.nin}:`, citizenError.message);
-      }
-
+    const enriched = requests.map((r) => {
       return {
         id: r.id,
-        firstName: r.prenom,
-        lastName: r.nom,
+        firstName: r.prenom || r.firstName,
+        lastName: r.nom || r.lastName,
         nin: r.nin,
         email: r.email,
-        dob: r.date_naissance,
+        dob: r.dob || r.date_naissance || r.date_demande, // Try multiple likely names
         commune: r.commune,
-        address: r.adresse,
+        address: r.adresse || r.address,
         status: r.status,
         rejectionReason: r.commentaire || r.rejection_reason,
-        // ✅ Generate public Supabase Storage URLs
         cniScanPath: storageUrl('cni-scans', r.cni_recto_path || r.photo_cni_path),
         selfiePath: storageUrl('selfies', r.selfie_path || r.photo_domicile_path),
         reg: {
-          firstName: citizen?.prenom ?? null,
-          lastName: citizen?.nom ?? null,
-          nin: citizen?.nin ?? null,
-          dob: citizen?.date_naissance ?? null,
-          commune: citizen?.commune ?? null,
+          firstName: null,
+          lastName: null,
+          nin: null,
+          dob: null,
+          commune: null,
         }
       };
-    }));
+    });
 
     res.json({ data: enriched }); 
   } catch (err) {
