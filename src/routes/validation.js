@@ -100,7 +100,7 @@ router.post('/:id/validate', async (req, res) => {
     const { error: updateError } = await supabase
       .from('demandes_inscription')
       .update({
-        status:           'approved',
+        status:           'termine',
         activation_token: token,
         date_traitement:  new Date().toISOString(),
       })
@@ -180,7 +180,7 @@ router.get('/verify-token', async (req, res) => {
       .from('demandes_inscription')
       .select('id, email, prenom, nom, status, activation_token')
       .eq('activation_token', token)
-      .eq('status', 'approved')
+      .eq('status', 'termine')
       .single();
 
     if (error || !data) {
