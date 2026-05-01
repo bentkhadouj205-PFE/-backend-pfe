@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
         .maybeSingle();
 
       if (citizenError) {
-        console.warn(`⚠️ [REGISTRY] Match failed for NIN ${r.nin}:`, citizenError.message);
+        console.warn(`[REGISTRY] Match failed for NIN ${r.nin}:`, citizenError.message);
       }
 
       return {
@@ -83,7 +83,7 @@ router.get('/', async (req, res) => {
 // ── POST validate ─────────────────────────────────────────────────────────
 router.post('/:id/validate', async (req, res) => {
   const { id } = req.params;
-  console.log(`📡 [VALIDATE] Processing request ${id}...`);
+  console.log(` [VALIDATE] Processing request ${id}...`);
   try {
     const { data: request, error: fetchErr } = await supabase
       .from('demandes_inscription')
@@ -92,8 +92,8 @@ router.post('/:id/validate', async (req, res) => {
       .single();
 
     if (fetchErr || !request) {
-        console.error('❌ [VALIDATE] Fetch error:', fetchErr?.message);
-        return res.status(404).json({ error: 'Request not found' });
+      console.error(' [VALIDATE] Fetch error:', fetchErr?.message);
+      return res.status(404).json({ error: 'Request not found' });
     }
 
     const { error: updateErr } = await supabase
@@ -102,14 +102,17 @@ router.post('/:id/validate', async (req, res) => {
       .eq('id', id);
 
     if (updateErr) {
-        console.error('❌ [VALIDATE] Supabase Update Forbidden/Error:', updateErr);
-        throw new Error(updateErr.message);
+      console.error(' [VALIDATE] Supabase Update Forbidden/Error:', updateErr);
+      throw new Error(updateErr.message);
     }
+
+    // ✅ Generate the missing token
+    const token = crypto.randomBytes(32).toString('hex');
 
     await sendActivationEmail(request.email, request.prenom, token);
     res.json({ success: true, message: 'Activation email sent' });
   } catch (err) {
-    console.error('Validate error:', err.message);
+    console.error(' [VALIDATE] error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
