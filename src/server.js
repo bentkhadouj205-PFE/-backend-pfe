@@ -1,21 +1,18 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import bcrypt from 'bcrypt';
+import { supabase } from './supabaseClient.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load .env from project root
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
-
-import express from 'express';
-import http from 'http';
-import path from 'path';
-import { Server } from 'socket.io';
-import cors from 'cors';
-import bcrypt from 'bcrypt';
-import { supabase } from './supabaseClient.js';
-import { fileURLToPath } from 'url';
 
 // ───────────── Import Routes ─────────────
 import notificationRoutes from './routes/notification.js';
