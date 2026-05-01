@@ -112,7 +112,7 @@ router.post('/:id/validate', async (req, res) => {
     }
 
     // ✅ [TOKEN] Generate and define the activation token CLEARLY
-    const token = crypto.randomBytes(32).toString('hex');
+    const generatedToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
@@ -120,7 +120,7 @@ router.post('/:id/validate', async (req, res) => {
       .from('demandes_inscription')
       .update({ 
         status: 'termine',
-        activation_token: token,
+        activation_token: generatedToken,
         commentaire: `EXPIRES:${expiresAt.toISOString()}` 
       })
       .eq('id', id);
@@ -130,10 +130,11 @@ router.post('/:id/validate', async (req, res) => {
       throw new Error(updateErr.message);
     }
 
-    await sendActivationEmail(request.email, request.prenom, token);
+    await sendActivationEmail(request.email, request.prenom, generatedToken);
     res.json({ success: true, message: 'Activation email sent' });
   } catch (err) {
-    console.error(' [VALIDATE] error:', err.message);
+    console.error('❌ [VALIDATE] error:', err.message);
+    console.error('📜 [VALIDATE] stack:', err.stack);
     res.status(500).json({ error: err.message });
   }
 });
