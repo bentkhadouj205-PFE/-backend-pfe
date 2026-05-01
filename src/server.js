@@ -70,9 +70,25 @@ app.use((req, res, next) => {
   next();
 });
 
+// 🛡️ Dedicated /socket.io CORS handler (Bypasses engine issues)
+app.use('/socket.io', (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.some(allowed => allowed instanceof RegExp ? allowed.test(origin) : allowed === origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-requested-with, ngrok-skip-browser-warning');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // ───────────── Socket.IO ─────────────
 const io = new Server(server, {
-  allowEIO3: true, // Compatibility mode
+  allowEIO3: true,
+  allowUpgrades: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
   cors: {
     origin: allowedOrigins,
     methods: ['GET', 'POST'],
