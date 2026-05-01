@@ -6,8 +6,13 @@ dotenv.config();
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
 
 const sendActivationEmail = async (to, firstName, token) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
   const verificationLink = `${frontendUrl}/verification-success?token=${token}`;
+
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📧 [EMAIL] Generating Activation Link...');
+  console.log(`🔗 Link: ${verificationLink}`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   const msg = {
     to,
