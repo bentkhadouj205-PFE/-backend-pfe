@@ -47,9 +47,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
 }));
 
-// Handle preflight requests manually (Express 5 syntax)
-app.options('(.*)', cors());
-
 //  Global Ngrok Bypass Middleware
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
