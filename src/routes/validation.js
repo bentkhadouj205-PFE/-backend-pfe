@@ -25,13 +25,20 @@ const storageUrl = (bucket, path) => {
 // ── GET all requests with registry comparison ─────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    console.log('🔍 Fetching registration requests...');
+    console.log('📡 [DEBUG] Testing Supabase connection...');
+    const { data: testData, error: testError } = await supabase.from('demandes_inscription').select('id').limit(1);
+    if (testError) {
+      console.error('❌ Supabase Connection Test Failed:', testError.message);
+      return res.status(500).json({ error: 'Supabase Connection Error', details: testError.message });
+    }
+
+    console.log('🔍 Fetching registration requests (Minimal Select)...');
     const { data: requests, error } = await supabase
       .from('demandes_inscription')
-      .select('*');
+      .select('id, nom, prenom, nin, email, status');
 
     if (error) {
-      console.error('❌ Supabase error (demandes_inscription):', error.message);
+      console.error('❌ Supabase Query Error:', error.message);
       return res.status(500).json({ error: error.message });
     }
 
