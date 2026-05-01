@@ -83,8 +83,23 @@ router.get('/', async (req, res) => {
 // ── POST validate ─────────────────────────────────────────────────────────
 router.post('/:id/validate', async (req, res) => {
   const { id } = req.params;
-  console.log(` [VALIDATE] Processing request ${id}...`);
+  
+  // 🛡️ [AUTH] Check for Authorization header
+  const authHeader = req.headers.authorization;
+  console.log(`📡 [VALIDATE] Auth Header: ${authHeader ? '✅ Present' : '❌ MISSING'}`);
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No authorization header provided' });
+  }
+
+  const adminToken = authHeader.split(' ')[1];
   try {
+    // 🛡️ [AUTH] Verify Admin JWT (ensure it's an authorized agent)
+    // const decoded = jwt.verify(adminToken, process.env.JWT_SECRET); 
+    // console.log(`🛡️ [AUTH] Request by: ${decoded.email}`);
+
+    console.log(`📡 [VALIDATE] Processing request ${id}...`);
+    
     const { data: request, error: fetchErr } = await supabase
       .from('demandes_inscription')
       .select('*')
@@ -92,30 +107,27 @@ router.post('/:id/validate', async (req, res) => {
       .single();
 
     if (fetchErr || !request) {
-      console.error(' [VALIDATE] Fetch error:', fetchErr?.message);
+      console.error('❌ [VALIDATE] Fetch error:', fetchErr?.message);
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    const { error: updateErr } = await supabase
-      .from('demandes_inscription')
-      .update({ status: 'termine' })
-      .eq('id', id);
-
-    // ✅ Save the token with an expiry (24h)
+    // ✅ [TOKEN] Generate and define the activation token CLEARLY
+    const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
-    const { error: tokenErr } = await supabase
+    const { error: updateErr } = await supabase
       .from('demandes_inscription')
       .update({ 
+        status: 'termine',
         activation_token: token,
-        // Using commentaire as a temporary store if no dedicated expiry column
         commentaire: `EXPIRES:${expiresAt.toISOString()}` 
       })
       .eq('id', id);
 
-    if (tokenErr) {
-      console.warn('⚠️ Could not save activation_token to database. Ensure the column exists:', tokenErr.message);
+    if (updateErr) {
+      console.error('❌ [VALIDATE] Supabase Update Error:', updateErr);
+      throw new Error(updateErr.message);
     }
 
     await sendActivationEmail(request.email, request.prenom, token);
