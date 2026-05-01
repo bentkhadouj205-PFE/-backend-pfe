@@ -43,6 +43,16 @@ const allowedOrigins = [
   process.env.FRONTEND_URL?.replace(/\/$/, ''), // Strip trailing slash for CORS safety
 ].filter(Boolean);
 
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
+}));
+
+// Handle preflight requests manually (Express 5 syntax)
+app.options('(.*)', cors());
+
 // ───────────── Socket.IO ─────────────
 const io = new Server(server, {
   cors: {
@@ -50,6 +60,17 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true,
   },
+});
+
+//  Bulletproof CORS: Manual header injection for Socket.IO engine
+io.engine.on("headers", (headers, req) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  headers["Access-Control-Allow-Credentials"] = "true";
+  headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
+  headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, ngrok-skip-browser-warning";
 });
 
 export { io };
@@ -224,10 +245,6 @@ io.on('connection', (socket) => {
     console.log('Socket déconnecté:', socket.id);
   });
 });
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true
-}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -250,10 +267,10 @@ app.get('/', (req, res) => {
 
 // ───────────── Start Server ─────────────
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Serveur démarré sur port ${PORT}`);
-  console.log(`✅ Socket.IO actif`);
+  console.log(`Serveur démarré sur port ${PORT}`);
+  console.log(` Socket.IO actif`);
 });
 
 server.on('error', (err) => {
-  console.error('💥 Server error:', err);
+  console.error(' Server error:', err);
 });
