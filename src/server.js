@@ -40,7 +40,8 @@ const allowedOrigins = [
   'http://192.168.1.6:5173',
   'https://cane-canopener-glove.ngrok-free.app',
   'https://cane-canopener-glove.ngrok-free.dev',
-];
+  process.env.FRONTEND_URL?.replace(/\/$/, ''), // Strip trailing slash for CORS safety
+].filter(Boolean);
 
 // ───────────── Socket.IO ─────────────
 const io = new Server(server, {
@@ -248,21 +249,11 @@ app.get('/', (req, res) => {
 });
 
 // ───────────── Start Server ─────────────
-const startServer = (portToTry = PORT) => {
-  server.listen(portToTry, () => {
-    console.log(`✅ Serveur démarré sur http://localhost:${portToTry}`);
-    console.log(`✅ Socket.IO actif sur ws://localhost:${portToTry}`);
-  });
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Serveur démarré sur port ${PORT}`);
+  console.log(`✅ Socket.IO actif`);
+});
 
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.log(`⚠️ Port ${portToTry} is busy, trying ${portToTry + 1}...`);
-      server.close();
-      startServer(Number(portToTry) + 1);
-    } else {
-      console.error('💥 Server error:', err);
-    }
-  });
-};
-
-startServer();
+server.on('error', (err) => {
+  console.error('💥 Server error:', err);
+});
