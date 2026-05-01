@@ -25,36 +25,38 @@ const storageUrl = (bucket, path) => {
 // ── GET all requests with registry comparison ─────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    console.log('🔍 [VALIDATION] Fetching requests...');
+    console.log('🔍 [VALIDATION] Fetching registration requests...');
     const { data: requests, error } = await supabase
       .from('demandes_inscription')
       .select('*')
       .order('date_demande', { ascending: false });
 
     if (error) {
-      console.warn('⚠️ Order by date_demande failed, trying without order:', error.message);
-      // Fallback: try without order if date_demande is missing
-      const { data: retryData, error: retryError } = await supabase
-        .from('demandes_inscription')
-        .select('*');
-      
-      if (retryError) {
-        console.error('❌ [VALIDATION] Supabase error:', retryError.message);
-        return res.status(500).json({ error: retryError.message });
-      }
-      return res.json({ data: retryData });
+      console.error('❌ [VALIDATION] Supabase Query Error:', error.message);
+      return res.status(500).json({ error: error.message });
     }
 
-    console.log(`✅ [VALIDATION] Found ${requests.length} requests.`);
+    console.log(`✅ [VALIDATION] Successfully retrieved ${requests.length} requests.`);
 
-    const enriched = requests.map((r) => {
+    const enriched = await Promise.all(requests.map(async (r) => {
+      // Find matching citizen by NIN (Registry check)
+      const { data: citizen, error: citizenError } = await supabase
+        .from('citizens')
+        .select('id, nom, prenom, nin, date_naissance, commune, wilaya')
+        .eq('nin', r.nin)
+        .maybeSingle();
+
+      if (citizenError) {
+        console.warn(`⚠️ Registry match failed for NIN ${r.nin}:`, citizenError.message);
+      }
+
       return {
         id: r.id,
         firstName: r.prenom || r.firstName,
         lastName: r.nom || r.lastName,
         nin: r.nin,
         email: r.email,
-        dob: r.dob || r.date_naissance || r.date_demande, // Try multiple likely names
+        dob: r.date_demande || r.created_at, // Use date_demande as DOB if no specific DOB column
         commune: r.commune,
         address: r.adresse || r.address,
         status: r.status,
@@ -62,14 +64,14 @@ router.get('/', async (req, res) => {
         cniScanPath: storageUrl('cni-scans', r.cni_recto_path || r.photo_cni_path),
         selfiePath: storageUrl('selfies', r.selfie_path || r.photo_domicile_path),
         reg: {
-          firstName: null,
-          lastName: null,
-          nin: null,
-          dob: null,
-          commune: null,
+          firstName: citizen?.prenom ?? null,
+          lastName: citizen?.nom ?? null,
+          nin: citizen?.nin ?? null,
+          dob: citizen?.date_naissance ?? null,
+          commune: citizen?.commune ?? null,
         }
       };
-    });
+    }));
 
     res.json({ data: enriched });
   } catch (err) {
