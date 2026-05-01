@@ -159,7 +159,8 @@ router.post('/activate', async (req, res) => {
   if (!token) return res.status(400).json({ error: 'Token missing' });
 
   try {
-    console.log(`🔍 [ACTIVATE] Verifying token: ${token.substring(0, 8)}...`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`🔍 [ACTIVATE] Attempt for token: ${token.substring(0, 10)}...`);
 
     // 1. Find the request by token
     const { data: request, error: findErr } = await supabase
@@ -169,9 +170,16 @@ router.post('/activate', async (req, res) => {
       .single();
 
     if (findErr || !request) {
-      console.error('❌ [ACTIVATE] Invalid token');
+      console.error('❌ [ACTIVATE] No match found in DB for this token.');
+      
+      // Log some context - is there ANY token?
+      const { data: others } = await supabase.from('demandes_inscription').select('email, activation_token').not('activation_token', 'is', null).limit(3);
+      console.log('📝 [DEBUG] Other active tokens in DB:', others);
+
       return res.status(400).json({ error: 'Lien invalide ou déjà utilisé' });
     }
+
+    console.log(`✅ [ACTIVATE] Match found! Email: ${request.email}`);
 
     // 2. Check Expiry (if stored in commentaire)
     if (request.commentaire && request.commentaire.startsWith('EXPIRES:')) {
