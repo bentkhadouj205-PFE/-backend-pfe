@@ -101,10 +101,17 @@ router.post('/:id/validate', async (req, res) => {
       .update({ status: 'termine' })
       .eq('id', id);
 
-    // ✅ Save the token to the database before sending email
+    // ✅ Save the token with an expiry (24h)
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
     const { error: tokenErr } = await supabase
       .from('demandes_inscription')
-      .update({ activation_token: token })
+      .update({ 
+        activation_token: token,
+        // Using commentaire as a temporary store if no dedicated expiry column
+        commentaire: `EXPIRES:${expiresAt.toISOString()}` 
+      })
       .eq('id', id);
 
     if (tokenErr) {
@@ -115,6 +122,20 @@ router.post('/:id/validate', async (req, res) => {
     res.json({ success: true, message: 'Activation email sent' });
   } catch (err) {
     console.error(' [VALIDATE] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET debug requests ───────────────────────────────────────────────────
+router.get('/debug/requests', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('demandes_inscription')
+      .select('id, email, prenom, status, activation_token, commentaire');
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -135,8 +156,18 @@ router.post('/activate', async (req, res) => {
       .single();
 
     if (findErr || !request) {
-      console.error('❌ [ACTIVATE] Invalid or expired token');
-      return res.status(400).json({ error: 'Lien invalide ou expiré' });
+      console.error('❌ [ACTIVATE] Invalid token');
+      return res.status(400).json({ error: 'Lien invalide ou déjà utilisé' });
+    }
+
+    // 2. Check Expiry (if stored in commentaire)
+    if (request.commentaire && request.commentaire.startsWith('EXPIRES:')) {
+      const expiryStr = request.commentaire.replace('EXPIRES:', '');
+      const expiryDate = new Date(expiryStr);
+      if (expiryDate < new Date()) {
+        console.error('⏰ [ACTIVATE] Token expired');
+        return res.status(400).json({ error: 'Lien expiré (valide 24h)' });
+      }
     }
 
     // 2. Create the user account (or update if exists)
