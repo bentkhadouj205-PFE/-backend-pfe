@@ -50,7 +50,7 @@ app.use(cors({
 // Handle preflight requests manually (Express 5 syntax)
 app.options('(.*)', cors());
 
-// 🛡️ Global Ngrok Bypass Middleware
+//  Global Ngrok Bypass Middleware
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
   next();
@@ -65,10 +65,10 @@ const io = new Server(server, {
   },
 });
 
-//  Bulletproof CORS: Manual header injection for Socket.IO engine
+// 🛡️ Bulletproof CORS: Manual header injection for Socket.IO engine
 io.engine.on("headers", (headers, req) => {
   const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
+  if (origin) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
   headers["Access-Control-Allow-Credentials"] = "true";
