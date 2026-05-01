@@ -65,12 +65,19 @@ const io = new Server(server, {
   },
 });
 
-// 🛡️ Bulletproof CORS: Manual header injection for Socket.IO engine
+// 🛡️ Bulletproof & Secure CORS: Validate origin before reflecting
 io.engine.on("headers", (headers, req) => {
   const origin = req.headers.origin;
-  if (origin) {
+  
+  const isAllowed = allowedOrigins.some(allowed => {
+    if (allowed instanceof RegExp) return allowed.test(origin);
+    return allowed === origin;
+  });
+
+  if (origin && isAllowed) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
+  
   headers["Access-Control-Allow-Credentials"] = "true";
   headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
   headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, ngrok-skip-browser-warning";
