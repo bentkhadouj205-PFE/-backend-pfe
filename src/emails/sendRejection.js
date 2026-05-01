@@ -8,7 +8,7 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
 const sendRejectionEmail = async (to, firstName, reason) => {
   const msg = {
     to,
-    from: 'noreply@resend.dev', // Replace with your verified sender
+    from: 'baladiyadigital27@gmail.com', // Must be a verified Sender Identity in SendGrid
     subject: 'Demande d\'inscription rejetée - Baladiya',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">

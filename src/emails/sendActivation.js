@@ -11,7 +11,7 @@ const sendActivationEmail = async (to, firstName, token) => {
 
   const msg = {
     to,
-    from: 'noreply@resend.dev', // Replace with your verified sender
+    from: 'baladiyadigital27@gmail.com', // Must be a verified Sender Identity in SendGrid
     subject: 'Vérification de votre compte - Baladiya',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
