@@ -29,11 +29,20 @@ router.get('/', async (req, res) => {
     const { data: requests, error } = await supabase
       .from('demandes_inscription')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('date_demande', { ascending: false });
 
     if (error) {
-      console.error('❌ [VALIDATION] Supabase error:', error.message);
-      return res.status(500).json({ error: error.message });
+      console.warn('⚠️ Order by date_demande failed, trying without order:', error.message);
+      // Fallback: try without order if date_demande is missing
+      const { data: retryData, error: retryError } = await supabase
+        .from('demandes_inscription')
+        .select('*');
+      
+      if (retryError) {
+        console.error('❌ [VALIDATION] Supabase error:', retryError.message);
+        return res.status(500).json({ error: retryError.message });
+      }
+      return res.json({ data: retryData });
     }
 
     console.log(`✅ [VALIDATION] Found ${requests.length} requests.`);
