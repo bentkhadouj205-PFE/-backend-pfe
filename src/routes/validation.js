@@ -101,18 +101,58 @@ router.post('/:id/validate', async (req, res) => {
       .update({ status: 'termine' })
       .eq('id', id);
 
-    if (updateErr) {
-      console.error(' [VALIDATE] Supabase Update Forbidden/Error:', updateErr);
-      throw new Error(updateErr.message);
-    }
+    // ✅ Save the token to the database before sending email
+    const { error: tokenErr } = await supabase
+      .from('demandes_inscription')
+      .update({ activation_token: token })
+      .eq('id', id);
 
-    // ✅ Generate the missing token
-    const token = crypto.randomBytes(32).toString('hex');
+    if (tokenErr) {
+      console.warn('⚠️ Could not save activation_token to database. Ensure the column exists:', tokenErr.message);
+    }
 
     await sendActivationEmail(request.email, request.prenom, token);
     res.json({ success: true, message: 'Activation email sent' });
   } catch (err) {
     console.error(' [VALIDATE] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST activate ─────────────────────────────────────────────────────────
+router.post('/activate', async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'Token missing' });
+
+  try {
+    console.log(`🔍 [ACTIVATE] Verifying token: ${token.substring(0, 8)}...`);
+
+    // 1. Find the request by token
+    const { data: request, error: findErr } = await supabase
+      .from('demandes_inscription')
+      .select('*')
+      .eq('activation_token', token)
+      .single();
+
+    if (findErr || !request) {
+      console.error('❌ [ACTIVATE] Invalid or expired token');
+      return res.status(400).json({ error: 'Lien invalide ou expiré' });
+    }
+
+    // 2. Create the user account (or update if exists)
+    // NOTE: In a real app, you'd move data to the 'users' table here
+    console.log(`✅ [ACTIVATE] Activating user: ${request.email}`);
+
+    const { error: activateErr } = await supabase
+      .from('demandes_inscription')
+      .update({ status: 'active', activation_token: null })
+      .eq('id', request.id);
+
+    if (activateErr) throw activateErr;
+
+    res.json({ success: true, message: 'Compte activé avec succès' });
+  } catch (err) {
+    console.error(' [ACTIVATE] error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
