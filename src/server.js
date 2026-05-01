@@ -17,10 +17,6 @@ import bcrypt from 'bcrypt';
 import { supabase } from './supabaseClient.js';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-
 // ───────────── Import Routes ─────────────
 import notificationRoutes from './routes/notification.js';
 import authRoutes from './routes/authRoutes.js';
