@@ -50,7 +50,7 @@ app.use(cors({
 // 🛡️ Global Ngrok Bypass & CORS Hardening
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
-  
+
   // Handle manual preflight for problematic proxies
   if (req.method === 'OPTIONS') {
     const origin = req.headers.origin;
@@ -70,7 +70,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// 🛡️ Dedicated /socket.io CORS handler (Bypasses engine issues)
+//  Dedicated /socket.io CORS handler (Bypasses engine issues)
 app.use('/socket.io', (req, res, next) => {
   const origin = req.headers.origin;
   if (origin && allowedOrigins.some(allowed => allowed instanceof RegExp ? allowed.test(origin) : allowed === origin)) {
@@ -96,10 +96,10 @@ const io = new Server(server, {
   },
 });
 
-// 🛡️ Bulletproof & Secure CORS: Validate origin before reflecting
+// Bulletproof & Secure CORS: Validate origin before reflecting
 io.engine.on("headers", (headers, req) => {
   const origin = req.headers.origin;
-  
+
   const isAllowed = allowedOrigins.some(allowed => {
     if (allowed instanceof RegExp) return allowed.test(origin);
     return allowed === origin;
@@ -108,7 +108,7 @@ io.engine.on("headers", (headers, req) => {
   if (origin && isAllowed) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
-  
+
   headers["Access-Control-Allow-Credentials"] = "true";
   headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
   headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, ngrok-skip-browser-warning";
@@ -122,12 +122,13 @@ io.on('connection', (socket) => {
   console.log('Handshake Query:', socket.handshake.query);
 
   if (userId) {
-    if (userRole === 'municipal_agent') {
+    const role = userRole?.toLowerCase();
+    if (role === 'municipal_agent' || role === 'municipal agent') {
       socket.join('agents_room');
-      console.log('Municipal Agent rejoint agents_room:', userId);
-    } else if (userRole === 'employee') {
+      console.log('✅ Municipal Agent rejoint agents_room:', userId);
+    } else if (role === 'employee') {
       socket.join(`employee_${userId}`);
-      console.log('Employe rejoint room:', `employee_${userId}`);
+      console.log('✅ Employe rejoint room:', `employee_${userId}`);
     }
   }
 
