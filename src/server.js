@@ -47,14 +47,32 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
 }));
 
-//  Global Ngrok Bypass Middleware
+// 🛡️ Global Ngrok Bypass & CORS Hardening
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
+  
+  // Handle manual preflight for problematic proxies
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed instanceof RegExp) return allowed.test(origin);
+      return allowed === origin;
+    });
+
+    if (origin && isAllowed) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-requested-with, ngrok-skip-browser-warning');
+      return res.sendStatus(204);
+    }
+  }
   next();
 });
 
 // ───────────── Socket.IO ─────────────
 const io = new Server(server, {
+  allowEIO3: true, // Compatibility mode
   cors: {
     origin: allowedOrigins,
     methods: ['GET', 'POST'],
