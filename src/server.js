@@ -8,12 +8,6 @@ import cors from 'cors';
 import bcrypt from 'bcrypt';
 import { supabase } from './supabaseClient.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Load .env from project root
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-
 // ───────────── Import Routes ─────────────
 import notificationRoutes from './routes/notification.js';
 import authRoutes from './routes/authRoutes.js';
@@ -25,6 +19,12 @@ import chatRoutes from './routes/chatRoutes.js';
 import pdfRoutes from './routes/pdfRoutes.js';
 import emailCertificateRoutes from './routes/emailCertificate.js';
 import validationRoutes from './routes/validation.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from project root
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
