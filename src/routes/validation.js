@@ -264,7 +264,7 @@ router.post('/activate', async (req, res) => {
     await supabase
       .from('demandes_inscription')
       .update({
-        status: 'activated',
+        status: 'active',
         activation_token: null,
       })
       .eq('id', data.id);
