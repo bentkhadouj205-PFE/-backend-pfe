@@ -9,15 +9,10 @@ export const sendActivationEmail = async (toEmail, prenom, token) => {
   console.log(' [EMAIL] Generating Activation Link...');
   console.log(` Link: ${activationLink}`);
 
-  // 🧪 For demo purposes on Render's free tier, always send to the verified dev email in production
-  const recipient = process.env.NODE_ENV === 'production' 
-    ? 'bentalebkhadouj39@gmail.com' 
-    : toEmail;
-
   try {
     const { data, error } = await resend.emails.send({
       from: 'Baladiya Digital <onboarding@resend.dev>',
-      to: recipient,
+      to: toEmail,
       subject: 'Activation de votre compte Baladiya Digital',
       html: `
         <div style="font-family: sans-serif; max-width: 520px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 12px;">
@@ -50,7 +45,7 @@ export const sendActivationEmail = async (toEmail, prenom, token) => {
       throw error;
     }
 
-    console.log(` ✅ Activation email sent to ${recipient} (ID: ${data?.id})`);
+    console.log(` ✅ Activation email sent to ${toEmail} (ID: ${data?.id})`);
   } catch (error) {
     console.error(' Email Error (Activation):', error.message);
     throw error;
