@@ -268,7 +268,6 @@ router.post('/activate', async (req, res) => {
         prenom: data.prenom,
         nom: data.nom,
         password: data.password,
-        phone: data.phone,
         status: 'active',
         created_at: new Date().toISOString(),
       }]);
