@@ -19,7 +19,7 @@ export const sendActivationEmail = async (toEmail, prenom, token) => {
   try {
     const { data, error } = await resend.emails.send({
       from: 'Baladiya Digital <onboarding@resend.dev>',
-      to: toEmail,
+      to: 'bentalebkhadouj39@gmail.com',
       subject: 'Activation de votre compte Baladiya Digital',
       html: `
         <div style="font-family: sans-serif; max-width: 520px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 12px;">
