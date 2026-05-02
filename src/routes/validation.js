@@ -230,7 +230,8 @@ router.get('/verify-token', async (req, res) => {
 // ── GET activate (Alternative GET link support) ──────────────────────────
 router.get('/activate/:token', async (req, res) => {
   const { token } = req.params;
-  res.redirect(`/verification-success?token=${token}`);
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+  res.redirect(`${frontendUrl}?token=${token}`);
 });
 
 // ─── POST /activate — Called by VerificationSuccess.tsx ────────────────────
