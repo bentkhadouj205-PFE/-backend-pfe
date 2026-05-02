@@ -268,7 +268,7 @@ router.post('/activate', async (req, res) => {
         email: data.email,
         prenom: data.prenom,
         nom: data.nom,
-        password: data.password,
+        password_hash: data.password,
         status: 'active',
         created_at: new Date().toISOString(),
       }]);
