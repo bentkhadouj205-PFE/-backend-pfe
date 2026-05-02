@@ -246,7 +246,6 @@ router.post('/activate', async (req, res) => {
   try {
     // 1. Find the request using the token
     const { data, error } = await supabase
-      .schema('register')
       .from('demandes_inscription')
       .select('*')
       .eq('activation_token', token)
@@ -261,7 +260,7 @@ router.post('/activate', async (req, res) => {
       return res.status(400).json({ valid: false, error: 'Compte déjà activé ou non validée' });
     }
 
-    // 3. Create the citizen account in the citizens table
+    // 3. Create the citizen account in the citizens table (IN REGISTER SCHEMA)
     const { error: insertError } = await supabase
       .schema('register')
       .from('citizens')
@@ -281,7 +280,6 @@ router.post('/activate', async (req, res) => {
 
     // 4. Invalidate token and mark request as fully activated
     await supabase
-      .schema('register')
       .from('demandes_inscription')
       .update({
         status: 'activated',
