@@ -34,6 +34,7 @@ const server = http.createServer(app);
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
+  'http://localhost:3000',
   'http://192.168.1.6:5173',
   'https://cane-canopener-glove.ngrok-free.dev', // Explicit ngrok allowance
   /\.ngrok-free\.app$/, // Allow any ngrok-free.app subdomain
@@ -294,7 +295,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ───────────── Routes ─────────────
 app.use('/api/validations', (req, res, next) => {
-  console.log('🚀 [ROUTE] /api/validations hit');
+  console.log(' [ROUTE] /api/validations hit');
   next();
 }, validationRoutes);
 
