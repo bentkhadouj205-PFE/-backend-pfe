@@ -13,7 +13,7 @@ const transporter = nodemailer.createTransport({
 
 export const sendActivationEmail = async (toEmail, prenom, token) => {
   const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
-  const verificationLink = `${frontendUrl}?token=${token}`;
+  const verificationLink = `${frontendUrl}/?token=${token}`;
 
   console.log(' [EMAIL] Generating Activation Link...');
   console.log(` Link: ${verificationLink}`);
