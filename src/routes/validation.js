@@ -233,4 +233,46 @@ router.get('/activate/:token', async (req, res) => {
   res.redirect(`/verification-success?token=${token}`);
 });
 
+// ─── POST /activate — Called by VerificationSuccess.tsx ────────────────────
+router.post('/activate', async (req, res) => {
+  const { token } = req.body;
+  console.log('🔍 [ACTIVATE] Token received in body:', token);
+
+  if (!token) {
+    return res.status(400).json({ valid: false, error: 'No token provided' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('demandes_inscription')
+      .select('id, email, prenom, nom, status, activation_token')
+      .eq('activation_token', token)
+      .maybeSingle();
+
+    console.log('📦 [ACTIVATE] DB result:', data ? { email: data.email, status: data.status } : 'No record found');
+    if (error) console.log('❌ [ACTIVATE] DB error:', error);
+
+    if (error || !data) {
+      console.log('❌ [ACTIVATE] Token not found or invalid');
+      return res.status(404).json({ valid: false, error: 'Lien invalide ou expiré' });
+    }
+
+    if (data.status !== 'termine') {
+      console.log(`❌ [ACTIVATE] Status mismatch. Found: ${data.status}, Expected: termine`);
+      return res.status(400).json({ valid: false, error: 'Compte déjà activé ou demande non validée' });
+    }
+
+    console.log('✅ [ACTIVATE] Token valid for:', data.email);
+    res.json({ 
+      valid: true, 
+      email: data.email, 
+      name: data.prenom 
+    });
+
+  } catch (err) {
+    console.error('🔥 [ACTIVATE] Server error:', err.message);
+    res.status(500).json({ valid: false, error: 'Internal server error' });
+  }
+});
+
 export default router;
