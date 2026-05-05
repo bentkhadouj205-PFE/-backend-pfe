@@ -83,7 +83,7 @@ router.get('/', async (req, res) => {
 router.post('/:id/validate', async (req, res) => {
   const { id } = req.params;
   try {
-    console.log(`📡 [VALIDATE] Processing ID: ${id}`);
+    console.log(`[VALIDATE] Processing ID: ${id}`);
     const { data: request, error } = await supabase
       .from('demandes_inscription')
       .select('*')
@@ -96,8 +96,8 @@ router.post('/:id/validate', async (req, res) => {
 
     const token = crypto.randomBytes(32).toString('hex');
 
-    // ✅ Save token to DB FIRST
-    console.log(`📡 [VALIDATE] Saving token to DB for ID: ${id}`);
+    // Save token to DB FIRST
+    console.log(` [VALIDATE] Saving token to DB for ID: ${id}`);
     const { error: updateError } = await supabase
       .from('demandes_inscription')
       .update({
@@ -112,7 +112,7 @@ router.post('/:id/validate', async (req, res) => {
       return res.status(500).json({ error: updateError.message });
     }
 
-    // ✅ Then try to send email — don't fail if email fails
+    // Then try to send email — don't fail if email fails
     try {
       await sendActivationEmail(request.email, request.prenom, token);
       res.json({ success: true, message: 'Validated and activation email sent' });
@@ -134,10 +134,10 @@ router.post('/:id/validate', async (req, res) => {
 router.post('/:id/reject', async (req, res) => {
   const { id } = req.params;
   const { reason } = req.body;
+  const rejectionReason = (reason && reason.trim())
+    ? reason.trim()
+    : 'Your request has been rejected.';
 
-  if (!reason || !reason.trim()) {
-    return res.status(400).json({ error: 'Rejection reason is required' });
-  }
 
   try {
     const { data: request, error } = await supabase
@@ -155,7 +155,7 @@ router.post('/:id/reject', async (req, res) => {
       .from('demandes_inscription')
       .update({
         status: 'refuse',
-        commentaire: reason,
+        commentaire: rejectionReason,
         date_traitement: new Date().toISOString(),
       })
       .eq('id', id);
@@ -166,7 +166,7 @@ router.post('/:id/reject', async (req, res) => {
     }
 
     // Send rejection email
-    await sendRejectionEmail(request.email, request.prenom, reason);
+    await sendRejectionEmail(request.email, request.prenom, rejectionReason);
 
     res.json({ success: true, message: 'Rejection email sent' });
   } catch (err) {
@@ -178,7 +178,7 @@ router.post('/:id/reject', async (req, res) => {
 // ── GET verify-token — called by frontend/mobile after clicking link ──────
 router.get('/verify-token', async (req, res) => {
   const { token } = req.query;
-  console.log('🔍 [VERIFY-TOKEN] Received token:', token);
+  console.log(' [VERIFY-TOKEN] Received token:', token);
 
   if (!token) {
     return res.status(400).json({ valid: false, error: 'No token provided' });
@@ -191,16 +191,16 @@ router.get('/verify-token', async (req, res) => {
       .eq('activation_token', token)
       .maybeSingle();
 
-    console.log('📦 [VERIFY-TOKEN] DB result:', data ? { ...data, activation_token: '***' } : 'No record found');
-    if (error) console.log('❌ [VERIFY-TOKEN] DB error:', error);
+    console.log('[VERIFY-TOKEN] DB result:', data ? { ...data, activation_token: '***' } : 'No record found');
+    if (error) console.log(' [VERIFY-TOKEN] DB error:', error);
 
     if (error || !data) {
-      console.log('❌ [VERIFY-TOKEN] Token not found or invalid');
+      console.log('[VERIFY-TOKEN] Token not found or invalid');
       return res.status(404).json({ valid: false, error: 'Lien invalide ou expiré' });
     }
 
     if (data.status !== 'termine') {
-      console.log(`❌ [VERIFY-TOKEN] Status mismatch. Found: ${data.status}, Expected: termine`);
+      console.log(` [VERIFY-TOKEN] Status mismatch. Found: ${data.status}, Expected: termine`);
       return res.status(400).json({ valid: false, error: 'Compte déjà activé ou demande non validée' });
     }
 
@@ -259,15 +259,41 @@ router.post('/activate', async (req, res) => {
     if (data.status !== 'termine') {
       return res.status(400).json({ valid: false, error: 'Compte déjà activé ou non validée' });
     }
+    const { data: existing } = await supabase
+      .from('citizens')
+      .select('id')
+      .eq('nin', data.nin)
+      .maybeSingle();
 
-    // 3. Invalidate token and mark request as fully activated
-    await supabase
+    if (!existing) {
+      const { error: insertError } = await supabase
+        .from('citizens')
+        .insert([{
+          email: data.email,
+          first_name: data.prenom,
+          last_name: data.nom,
+          nin: data.nin,
+          adresse: data.adresse,
+        }]);
+
+      if (insertError) {
+        console.error(' Insert citizens error:', insertError);
+        throw insertError;
+      }
+    }
+
+    const { error: updateError } = await supabase
       .from('demandes_inscription')
       .update({
-        status: 'active',
+        status: 'activated',
         activation_token: null,
       })
       .eq('id', data.id);
+
+    if (updateError) {
+      console.error(' Update status error:', updateError);
+      throw updateError;
+    }
 
     console.log(' Citizen activated:', data.email);
     res.json({ valid: true, email: data.email, name: data.prenom });
