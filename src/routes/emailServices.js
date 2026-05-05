@@ -22,9 +22,14 @@ export async function generateCertificatePDF(data) {
   const grey  = rgb(0.5,0.5,0.5);
 
   // helper: dotted line
-  const dots = (x1, x2, y) => {
+  const dots = (x1, x2, yPos) => {
     for (let x = x1; x < x2; x += 4) {
-      page.drawLine({ start:{x, y}, end:{x+2, y}, thickness:0.5, color:grey });
+      page.drawLine({ 
+        start: { x: x, y: yPos }, 
+        end: { x: x + 2, y: yPos }, 
+        thickness: 0.5, 
+        color: grey 
+      });
     }
   };
 
