@@ -2,23 +2,22 @@ import nodemailer from 'nodemailer';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
+  host: 'smtp-relay.brevo.com',
   port: 587,
   secure: false,
-  family: 4,  // Force IPv4 pour Render
   auth: {
     user: 'baladiyadigital27@gmail.com',
-    pass: process.env.SMTP_PASS,  // App Password Gmail
+    pass: process.env.BREVO_SMTP_KEY, // ← ضع مفتاح Brevo SMTP هنا
   },
 });
 
 export async function initializeEmail() {
   try {
     await transporter.verify();
-    console.log('✅ Gmail SMTP ready (baladiyadigital27@gmail.com)');
+    console.log('✅ Brevo SMTP ready (baladiyadigital27@gmail.com)');
     return true;
   } catch (error) {
-    console.error('❌ SMTP connection failed:', error.message);
+    console.error('❌ Brevo SMTP failed:', error.message);
     return false;
   }
 }
@@ -174,7 +173,7 @@ export async function generateCertificatePDF(data) {
 
   // ── ROW 12 — officier ────────────────────────────────────────────────
   y -= 18;
-  txt("Wa ba'da al-tilawa waqa'a ma'ana nahnu:", 50, y, font, 8);
+  txt("Wa ba'da al-tilawa waqa'a ma'انا nahnu:", 50, y, font, 8);
   txt(data.officierEtatCivil || '..........', 265, y, fontBold, 9);
   dots(265 + fontBold.widthOfTextAtSize(data.officierEtatCivil||'', 9) + 5, width-200, y-1);
   txt('Dabitu al-hala al-madaniya', width-195, y, font, 7);
