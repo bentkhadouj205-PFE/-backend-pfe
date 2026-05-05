@@ -1,11 +1,26 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  family: 4,  // Force IPv4 pour Render
+  auth: {
+    user: 'baladiyadigital27@gmail.com',
+    pass: process.env.SMTP_PASS,  // App Password Gmail
+  },
+});
 
 export async function initializeEmail() {
-  console.log('✅ Resend email service ready');
-  return true;
+  try {
+    await transporter.verify();
+    console.log('✅ Gmail SMTP ready (baladiyadigital27@gmail.com)');
+    return true;
+  } catch (error) {
+    console.error('❌ SMTP connection failed:', error.message);
+    return false;
+  }
 }
 
 export async function generateCertificatePDF(data) {
@@ -203,10 +218,10 @@ export async function generateCertificatePDF(data) {
 
 export const emailService = {
   async sendValidationEmailWithPDF(citizenEmail, citizenFirstName, requestSubject, employeeName, comment, pdfBuffer) {
-    const { data, error } = await resend.emails.send({
-      from: 'Baladiya Digital <onboarding@resend.dev>',
-      to: 'bentalebkhadouj39@gmail.com', // ← Redirecting all to your email for PFE Demo
-      subject: `Votre document est pret - ${requestSubject || 'Acte de Naissance'}`,
+    const info = await transporter.sendMail({
+      from: '"Baladiya Digital" <baladiyadigital27@gmail.com>',
+      to: citizenEmail,
+      subject: `Votre document est prêt - ${requestSubject || 'Acte de Naissance'}`,
       html: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #ddd;border-radius:8px;overflow:hidden">
           <div style="background:#00782B;padding:20px;text-align:center">
@@ -227,11 +242,11 @@ export const emailService = {
       `,
       attachments: [{
         filename: 'acte_naissance.pdf',
-        content: pdfBuffer.toString('base64'),
+        content: pdfBuffer,
+        contentType: 'application/pdf',
       }],
     });
 
-    if (error) throw new Error(error.message);
-    return { messageId: data?.id };
+    return { messageId: info.messageId };
   },
 };
