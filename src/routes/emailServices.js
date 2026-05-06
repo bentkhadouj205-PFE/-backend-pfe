@@ -1,241 +1,224 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import fontkit from '@pdf-lib/fontkit';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export async function initializeEmail() {
-  console.log(' Brevo API Service ready');
+  console.log('✅ Brevo API Service ready');
   return true;
 }
 
 export async function generateCertificatePDF(data) {
   const now = new Date();
-  const today = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+  const today = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
 
   const formatDate = (d) => {
-    if (!d) return '..../../..';
+    if (!d) return '../../..';
     const dt = new Date(d);
     return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
   };
 
-  const formatTime = (t) => t ? t.substring(0, 5) : '......';
+  const formatTime = (t) => (t ? t.substring(0, 5) : '......');
 
   const pdfDoc = await PDFDocument.create();
-  pdfDoc.registerFontkit(fontkit);
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
 
-  // ✅ استخدام الخطوط الافتراضية لضمان العمل على Render
-  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const fontArabic = fontRegular; 
+  const fontR = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   const black = rgb(0, 0, 0);
-  const grey = rgb(0.4, 0.4, 0.4);
+  const grey = rgb(0.45, 0.45, 0.45);
+  const green = rgb(0.0, 0.47, 0.25);
+  const white = rgb(1, 1, 1);
+  const blue = rgb(0.1, 0.1, 0.6);
 
-  const sanitize = (str) => {
-    if (!str) return '';
-    // تنظيف النصوص من الحروف غير اللاتينية لمنع الانهيار مع خط Helvetica
-    return String(str).replace(/[^\x00-\x7F]/g, '');
+  const safe = (s) => String(s || '').replace(/[^\x00-\x7F]/g, '').trim();
+
+  const txt = (text, x, y, f = fontR, size = 9, color = black) => {
+    const s = safe(text);
+    if (!s) return;
+    page.drawText(s, { x, y, font: f, size, color });
   };
 
-  const txt = (text, x, y, f = fontRegular, size = 10, color = black) => {
-    const str = sanitize(text);
-    if (!str) return;
-    page.drawText(str, { x, y, font: f, size, color });
+  const dots = (x1, x2, y) => {
+    for (let x = x1; x < x2; x += 4)
+      page.drawLine({ start: { x: x, y: y }, end: { x: x + 2, y: y }, thickness: 0.5, color: grey });
   };
 
-  const dots = (x1, x2, yPos) => {
-    for (let x = x1; x < x2; x += 4) {
-      page.drawLine({
-        start: { x: x, y: yPos },
-        end: { x: x + 2, y: yPos },
-        thickness: 0.5,
-        color: grey
-      });
-    }
-  };
+const ln = (x1, y1, x2, y2, t = 0.5, c = black) =>
+  page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: t, color: c });
 
-  const ln = (x1, y1, x2, y2, t = 0.5, c = black) =>
-    page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: t, color: c });
+const val = (v, fallback = '..........') => safe(v) || fallback;
 
-  // ========== HEADER (الرأس) ==========
-  txt('الجمهورية الجزائرية الديموقراطية الشعبية', width / 2 - 130, height - 25, fontArabic, 11, black);
-  txt('وزارة الداخلية والجماعات المحلية', width / 2 - 110, height - 42, fontArabic, 9, black);
-  txt('السجل الوطني للحالة المدنية', width / 2 - 85, height - 57, fontArabic, 9, black);
+// ── HEADER ───────────────────────────────────────────────────────────────
+page.drawRectangle({ x: 0, y: height - 62, width, height: 62, color: green });
+txt('REPUBLIQUE ALGERIENNE DEMOCRATIQUE ET POPULAIRE', 85, height - 22, fontB, 10, white);
+txt('Ministere de l\'Interieur et des Collectivites Locales', 110, height - 37, fontR, 8, rgb(0.85, 0.95, 0.85));
+txt('Registre National de l\'Etat Civil', 185, height - 51, fontR, 8, rgb(0.85, 0.95, 0.85));
 
-  ln(50, height - 65, width - 50, height - 65, 0.8, black);
+// right side: wilaya
+txt('Wilaya: ' + val(data.wilayaDelivrance, 'Mostaganem').toUpperCase(), width - 160, height - 22, fontR, 8, white);
 
-  // ========== TITLE (العنوان) ==========
-  txt('شهادة الميلاد', width / 2 - 45, height - 88, fontArabic, 16, black);
-  txt('نسخة الكترونية', width / 2 - 45, height - 105, fontArabic, 9, grey);
-  ln(50, height - 112, width - 50, height - 112, 0.5, black);
+// ── TITLE ────────────────────────────────────────────────────────────────
+txt('SHAHADA AL MILAD - ACTE DE NAISSANCE', 145, height - 82, fontB, 13, black);
+txt('(Copie electronique / Nuskha Iliktruniya)', 185, height - 97, fontR, 8, grey);
+ln(50, height - 103, width - 50, height - 103, 1, green);
 
-  // ========== رقم الشهادة + في يوم ==========
-  let y = height - 138;
-  txt('رقم الشهادة:', 50, y, fontArabic, 10);
-  txt(data.numeroChahada || '..........', 140, y, fontArabic, 10);
-  dots(140 + (fontArabic.widthOfTextAtSize(data.numeroChahada || '..........', 10) || 50) + 5, 230, y - 2);
+// ── Cert Number + Date ───────────────────────────────────────────────────
+let y = height - 122;
+txt('N° Chahada:', 50, y, fontR, 9);
+txt(val(data.numeroChahada), 125, y, fontB, 9, blue);
+txt('N° Acte:', 280, y, fontR, 9);
+txt(val(data.numeroActe), 325, y, fontB, 9, blue);
+txt('fi yawm / le:', 420, y, fontR, 9);
+dots(490, width - 50, y - 1);
 
-  txt('في يوم:', 280, y, fontArabic, 10);
-  txt(formatDate(data.dateNaissance), 330, y, fontArabic, 10);
-  dots(330 + (fontArabic.widthOfTextAtSize(formatDate(data.dateNaissance), 10) || 50) + 5, 450, y - 2);
+// ── Row 1: heure + lieu ──────────────────────────────────────────────────
+y -= 20;
+txt("'Ala al-sa'a (Heure):", 50, y, fontR, 9);
+txt(formatTime(data.heureNaissance), 165, y, fontB, 9);
+dots(195, 265, y - 1);
+txt('Wulida(t) bi (Ne(e) a):', 270, y, fontR, 9);
+dots(375, width - 50, y - 1);
 
-  // ========== على الساعة + ولد(ت) بـ ==========
-  y -= 22;
-  txt('على الساعة:', 50, y, fontArabic, 10);
-  txt(formatTime(data.heureNaissance) + '......', 130, y, fontArabic, 10);
-  dots(200, 260, y - 2);
+// ── Row 2: commune + wilaya naissance ────────────────────────────────────
+y -= 18;
+txt('Baladiya (Commune):', 50, y, fontR, 9);
+txt(val(data.communeNaissance), 160, y, fontB, 9, blue);
+txt('Wilaya:', 310, y, fontR, 9);
+txt(val(data.wilayaNaissance), 348, y, fontB, 9, blue);
 
-  txt('ولد(ت) بـ:', 280, y, fontArabic, 10);
-  dots(340, width - 50, y - 2);
+// ── Row 3: date + nom ────────────────────────────────────────────────────
+y -= 18;
+txt('Date:', 50, y, fontR, 9);
+txt(formatDate(data.dateNaissance), 80, y, fontB, 9);
+txt('Al-musamm(a/at) (Nomme(e)):', 180, y, fontR, 9);
+txt(val(data.fullName), 330, y, fontB, 10, blue);
+dots(330 + fontB.widthOfTextAtSize(val(data.fullName), 10) + 4, width - 50, y - 1);
 
-  // ========== بلدية + ولاية ==========
-  y -= 22;
-  txt('بلدية:', 50, y, fontArabic, 10);
-  txt(data.communeNaissance || '..........', 100, y, fontArabic, 10);
-  dots(100 + (fontArabic.widthOfTextAtSize(data.communeNaissance || '..........', 10) || 50) + 5, 230, y - 2);
+// ── Row 4: sexe ──────────────────────────────────────────────────────────
+y -= 18;
+txt('Al-sinn (Sexe):', 50, y, fontR, 9);
+const sexeTxt = data.sexe === 'M' ? 'Masculin (Dhakar)' : data.sexe === 'F' ? 'Feminin (Untha)' : '......';
+txt(sexeTxt, 135, y, fontB, 9);
+dots(135 + fontB.widthOfTextAtSize(sexeTxt, 9) + 4, width - 50, y - 1);
 
-  txt('ولاية:', 280, y, fontArabic, 10);
-  txt(data.wilayaNaissance || '..........', 320, y, fontArabic, 10);
-  dots(320 + (fontArabic.widthOfTextAtSize(data.wilayaNaissance || '..........', 10) || 50) + 5, width - 50, y - 2);
+// ── Row 5: père nom + age ────────────────────────────────────────────────
+y -= 18;
+txt('Ibn(at) / Pere:', 50, y, fontR, 9);
+txt(val(data.pereNomPrenom), 130, y, fontB, 9);
+dots(130 + fontB.widthOfTextAtSize(val(data.pereNomPrenom), 9) + 4, 310, y - 1);
+txt("'Omrohu (Age):", 315, y, fontR, 9);
+txt(val(data.pereAge), 395, y, fontB, 9);
+dots(395 + 20, width - 50, y - 1);
 
-  // ========== المسمى(ة) ==========
-  y -= 22;
-  txt('المسمى(ة):', 50, y, fontArabic, 10);
-  txt(data.fullName || '..........', 120, y, fontArabic, 11);
-  dots(120 + (fontArabic.widthOfTextAtSize(data.fullName || '..........', 11) || 50) + 5, width - 50, y - 2);
+// ── Row 6: père métier ───────────────────────────────────────────────────
+y -= 18;
+txt('Mihnatohu (Profession pere):', 50, y, fontR, 9);
+txt(val(data.pereMetier), 210, y, fontB, 9);
+dots(210 + fontB.widthOfTextAtSize(val(data.pereMetier), 9) + 4, width - 50, y - 1);
 
-  // ========== السن ==========
-  y -= 22;
-  txt('السن:', 50, y, fontArabic, 10);
-  const sexeText = data.sexe === 'M' ? 'ذكر' : data.sexe === 'F' ? 'أنثى' : '......';
-  txt(sexeText, 90, y, fontArabic, 10);
-  dots(90 + (fontArabic.widthOfTextAtSize(sexeText, 10) || 50) + 5, 200, y - 2);
+// ── Row 7: mère nom + age ────────────────────────────────────────────────
+y -= 18;
+txt('Wa / Mere:', 50, y, fontR, 9);
+txt(val(data.mereNomPrenom), 115, y, fontB, 9);
+dots(115 + fontB.widthOfTextAtSize(val(data.mereNomPrenom), 9) + 4, 310, y - 1);
+txt("'Omroha (Age):", 315, y, fontR, 9);
+txt(val(data.mereAge), 395, y, fontB, 9);
+dots(395 + 20, width - 50, y - 1);
 
-  // ========== ابن(ة) (الأب) ==========
-  y -= 24;
-  txt('ابن(ة):', 50, y, fontArabic, 10);
-  txt(data.pereNomPrenom || '..........', 100, y, fontArabic, 10);
-  dots(100 + (fontArabic.widthOfTextAtSize(data.pereNomPrenom || '..........', 10) || 50) + 5, 280, y - 2);
+// ── Row 8: mère métier ───────────────────────────────────────────────────
+y -= 18;
+txt('Mihnatoha (Profession mere):', 50, y, fontR, 9);
+txt(val(data.mereMetier), 210, y, fontB, 9);
+dots(210 + fontB.widthOfTextAtSize(val(data.mereMetier), 9) + 4, width - 50, y - 1);
 
-  txt('معروف بـ:', 290, y, fontArabic, 10);
-  txt(data.pereMetier || '..........', 350, y, fontArabic, 10);
-  dots(350 + (fontArabic.widthOfTextAtSize(data.pereMetier || '..........', 10) || 50) + 5, width - 50, y - 2);
+// ── Row 9: domicile ──────────────────────────────────────────────────────
+y -= 18;
+txt('Al-sakinin / Domicile:', 50, y, fontR, 9);
+dots(175, 250, y - 1);
+txt('Baladiya:', 255, y, fontR, 9);
+txt(val(data.domicileCommune), 305, y, fontB, 9, blue);
+txt('Wilaya:', 405, y, fontR, 9);
+txt(val(data.domicileWilaya), 443, y, fontB, 9, blue);
 
-  // ========== و (الأم) ==========
-  y -= 24;
-  txt('و:', 50, y, fontArabic, 10);
-  txt(data.mereNomPrenom || '..........', 70, y, fontArabic, 10);
-  dots(70 + (fontArabic.widthOfTextAtSize(data.mereNomPrenom || '..........', 10) || 50) + 5, 280, y - 2);
+// ── Row 10: rédigé ───────────────────────────────────────────────────────
+y -= 18;
+txt('Hurira fi (Redige le):', 50, y, fontR, 9);
+dots(165, 270, y - 1);
+txt("'Ala al-sa'a (Heure):", 275, y, fontR, 9);
+txt(formatTime(data.heureRedaction), 385, y, fontB, 9);
+dots(410, width - 50, y - 1);
 
-  txt('معروفة بـ:', 290, y, fontArabic, 10);
-  txt(data.mereMetier || '..........', 360, y, fontArabic, 10);
-  dots(360 + (fontArabic.widthOfTextAtSize(data.mereMetier || '..........', 10) || 50) + 5, width - 50, y - 2);
+// ── Row 11: déclaré par ──────────────────────────────────────────────────
+y -= 18;
+txt("I'lan (Declare par):", 50, y, fontR, 9);
+txt(val(data.declarePar), 165, y, fontB, 9);
+dots(165 + fontB.widthOfTextAtSize(val(data.declarePar), 9) + 4, width - 50, y - 1);
 
-  // ========== الساكنين بـ ==========
-  y -= 24;
-  txt('الساكنين بـ:', 50, y, fontArabic, 10);
-  dots(140, 250, y - 2);
+y -= 15;
+dots(50, width - 50, y - 1);
 
-  txt('بلدية:', 280, y, fontArabic, 10);
-  txt(data.domicileCommune || '..........', 325, y, fontArabic, 10);
-  txt('ولاية:', 410, y, fontArabic, 10);
-  txt(data.domicileWilaya || '..........', 450, y, fontArabic, 10);
+// ── Row 12: officier ─────────────────────────────────────────────────────
+y -= 18;
+txt("Wa ba'da al-tilawa (Apres lecture):", 50, y, fontR, 8);
+txt(val(data.officierEtatCivil), 240, y, fontB, 9);
+dots(240 + fontB.widthOfTextAtSize(val(data.officierEtatCivil), 9) + 4, width - 195, y - 1);
+txt('Dabitu al-hala al-madaniya', width - 190, y, fontR, 7, grey);
 
-  // ========== حرر في ==========
-  y -= 24;
-  txt('حرر في:', 50, y, fontArabic, 10);
-  dots(110, 270, y - 2);
+// ── Mentions marginales ───────────────────────────────────────────────────
+y -= 20;
+txt('Al-bayanat al-hamishiya (Mentions marginales):', 50, y, fontR, 9);
+if (data.marginalNotes) txt(safe(data.marginalNotes).substring(0, 60), 310, y, fontR, 8);
+dots(310, width - 50, y - 1);
+y -= 14; dots(50, width - 50, y - 1);
+y -= 14; dots(50, width - 50, y - 1);
+y -= 14; dots(50, width - 50, y - 1);
+y -= 14; dots(50, width - 50, y - 1);
 
-  txt('على الساعة:', 280, y, fontArabic, 10);
-  txt(formatTime(data.heureRedaction) + '......', 355, y, fontArabic, 10);
-  dots(420, width - 50, y - 2);
+// ── Date de délivrance ───────────────────────────────────────────────────
+ln(50, y - 8, width - 50, y - 8, 0.3);
+y -= 24;
+txt(`Hurrira bi: ${val(data.redigeA, val(data.domicileCommune, 'Mostaganem'))}   fi / le:   ${today}`, 50, y, fontR, 9);
 
-  // ========== بإعلان ==========
-  y -= 24;
-  txt('بإعلان:', 50, y, fontArabic, 10);
-  txt(data.declarePar || '..........', 110, y, fontArabic, 10);
-  dots(110 + (fontArabic.widthOfTextAtSize(data.declarePar || '..........', 10) || 50) + 5, width - 50, y - 2);
+// ── Nom latin ────────────────────────────────────────────────────────────
+y -= 22;
+ln(50, y + 14, width - 50, y + 14, 0.3, grey);
+txt('Al-kitaba al-latiniya / Ecriture en caracteres latins:', 80, y, fontB, 8);
+y -= 16;
+txt(val(data.fullName), 200, y, fontB, 11, blue);
+dots(50, width - 50, y - 2);
 
-  y -= 18;
-  dots(50, width - 50, y - 2);
+// ── Notes ────────────────────────────────────────────────────────────────
+y -= 22;
+txt('1- Kamil al-huruf / Toutes les lettres', 50, y, fontR, 8, grey);
+y -= 13;
+txt('2- Ism wa laqab al-awlad / Nom et prenom des enfants', 50, y, fontR, 8, grey);
 
-  // ========== وبعد التلاوة وقع معنا نحن ==========
-  y -= 24;
-  txt('وبعد التلاوة وقع معنا نحن:', 50, y, fontArabic, 9);
-  txt(data.officierEtatCivil || '..........', 250, y, fontArabic, 10);
-  dots(250 + (fontArabic.widthOfTextAtSize(data.officierEtatCivil || '..........', 10) || 50) + 5, width - 180, y - 2);
-  txt('ضابط الحالة المدنية', width - 175, y, fontArabic, 8);
-  txt('ببلدية', width - 90, y - 12, fontArabic, 8);
+// ── Footer ───────────────────────────────────────────────────────────────
+page.drawRectangle({ x: 0, y: 0, width, height: 28, color: green });
+txt('Mustakhraj min Al-Sijil Al-Watani lil-Hala Al-Madaniya - Al-Marja\': J.M 7', 80, 9, fontR, 8, white);
 
-  // ========== البيانات الهامشية ==========
-  y -= 32;
-  txt('البيانات الهامشية:', 50, y, fontArabic, 9, black);
-
-  if (data.marginalNotes) {
-    txt(data.marginalNotes.substring(0, 80), 170, y, fontArabic, 8);
-  }
-  dots(170, width - 50, y - 2);
-
-  y -= 16;
-  dots(50, width - 50, y - 2);
-  y -= 16;
-  dots(50, width - 50, y - 2);
-  y -= 16;
-  dots(50, width - 50, y - 2);
-
-  // ========== خط فاصل ==========
-  ln(50, y - 10, width - 50, y - 10, 0.5, black);
-
-  // ========== تاريخ الإصدار ==========
-  y -= 28;
-  txt(`حررت بـ ${data.redigeA || data.domicileCommune || 'مستغانم'} ...... في ${today}`, 50, y, fontArabic, 9);
-
-  // ========== الكتابة اللاتينية ==========
-  y -= 24;
-  txt('الكتابة السابقة للاسم واللقب بالأحرف اللاتينية:', 80, y, fontArabic, 8, black);
-
-  y -= 18;
-  txt(data.fullNameLatin || data.fullName || '..........', 180, y, fontArabic, 11);
-  dots(50, width - 50, y - 2);
-
-  // ========== ملاحظات ==========
-  y -= 24;
-  txt('1- بكل الحروف', 50, y, fontArabic, 8, black);
-  y -= 14;
-  txt('2- اسم ولقب الولد', 50, y, fontArabic, 8, black);
-
-  // ========== تذييل (Footer) ==========
-  ln(50, 40, width - 50, 40, 0.5, black);
-  txt('مستخرج من السجل الوطني للحالة المدنية - المرجع ج م 7', 120, 18, fontArabic, 8, black);
-
-  const pdfBytes = await pdfDoc.save();
-  return Buffer.from(pdfBytes);
+const pdfBytes = await pdfDoc.save();
+return Buffer.from(pdfBytes);
 }
 
-// ========== خدمة الإيميل (Brevo API) ==========
+// ── Brevo Email Service ───────────────────────────────────────────────────────
 export const emailService = {
   async sendValidationEmailWithPDF(citizenEmail, citizenFirstName, requestSubject, employeeName, comment, pdfBuffer) {
     const BREVO_API_KEY = process.env.BREVO_API_KEY || process.env.BREVO_SMTP_PASS;
 
     const payload = {
-      sender: { name: "Baladiya Digital", email: "baladiyadigital27@gmail.com" },
+      sender: { name: 'Baladiya Digital', email: 'baladiyadigital27@gmail.com' },
       to: [{ email: citizenEmail, name: citizenFirstName }],
-      subject: `Votre document est prêt - ${requestSubject || 'Acte de Naissance'}`,
+      subject: `Votre document est pret - ${requestSubject || 'Acte de Naissance'}`,
       htmlContent: `
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #ddd;border-radius:8px;overflow:hidden">
-          <div style="background:#ffffff;padding:20px;text-align:center;border-bottom:2px solid #000">
-            <h1 style="color:#000;margin:0;font-size:22px">Baladiya Digital</h1>
-            <p style="color:#555;margin:4px 0 0">Service Etat Civil Numerique</p>
+          <div style="background:#00782B;padding:20px;text-align:center">
+            <h1 style="color:#fff;margin:0;font-size:22px">Baladiya Digital</h1>
+            <p style="color:#c8f5d8;margin:4px 0 0">Service Etat Civil Numerique</p>
           </div>
           <div style="padding:24px">
             <p style="font-size:16px">Bonjour <strong>${citizenFirstName || ''}</strong>,</p>
-            <p>Votre demande d'<strong>${requestSubject || 'Acte de Naissance'}</strong> a ete <span style="color:#000;font-weight:bold">approuvee</span>.</p>
+            <p>Votre demande d'<strong>${requestSubject || 'Acte de Naissance'}</strong> a ete <span style="color:#00782B;font-weight:bold">approuvee</span>.</p>
             <p>Votre document officiel est joint a cet email en format PDF.</p>
             ${comment ? `<p style="background:#f5f5f5;padding:12px;border-radius:6px;font-style:italic">Note : ${comment}</p>` : ''}
             <p style="color:#888;font-size:13px;margin-top:20px">Traite par : <strong>${employeeName || 'Service Etat Civil'}</strong></p>
@@ -245,12 +228,10 @@ export const emailService = {
           </div>
         </div>
       `,
-      attachment: [
-        {
-          content: pdfBuffer.toString('base64'),
-          name: "acte_naissance.pdf"
-        }
-      ]
+      attachment: [{
+        content: pdfBuffer.toString('base64'),
+        name: 'acte_naissance.pdf',
+      }],
     };
 
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -258,17 +239,16 @@ export const emailService = {
       headers: {
         'accept': 'application/json',
         'api-key': BREVO_API_KEY,
-        'content-type': 'application/json'
+        'content-type': 'application/json',
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     const result = await response.json();
     if (!response.ok) {
       console.error('❌ Brevo API Error:', result);
-      throw new Error(result.message || 'Failed to send email via Brevo API');
+      throw new Error(result.message || 'Failed to send email via Brevo');
     }
-
     return { messageId: result.messageId };
-  }
+  },
 };
