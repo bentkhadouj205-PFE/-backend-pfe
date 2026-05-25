@@ -37,7 +37,7 @@ router.post('/submit', async (req, res) => {
     const empFullName = `${emp.first_name} ${emp.last_name}`;
 
     const { rows } = await pool.query(
-      `INSERT INTO requests
+      `INSERT INTO demandes
          (citizen_first_name, citizen_last_name, citizen_email, citizen_nin,
            citizen_address,
           subject, description,
@@ -50,7 +50,7 @@ router.post('/submit', async (req, res) => {
         citizenData.lastName,
         citizenData.email,
         citizenData.nin,
-        citizenData.address  ?? null,
+        citizenData.address,
         subject,
         description,
         emp.id,
@@ -75,10 +75,10 @@ router.post('/submit', async (req, res) => {
       message: 'Demande soumise avec succès',
       requestId: newRequest.id,
       assignedTo: {
-        id:       emp.id,
-        name:     empFullName,
+        id: emp.id,
+        name: empFullName,
         position: emp.position,
-        service:  emp.service
+        service: emp.service
       }
     });
   } catch (error) {
@@ -120,13 +120,13 @@ router.post('/login', async (req, res) => {
     res.json({
       message: 'Connexion réussie',
       employee: {
-        id:        emp.id,  // returns Supabase UUID
-        email:     emp.email,
+        id: emp.id,  // returns Supabase UUID
+        email: emp.email,
         firstName: emp.first_name,
-        lastName:  emp.last_name,
-        role:      emp.role,
-        service:   emp.service,
-        position:  emp.position
+        lastName: emp.last_name,
+        role: emp.role,
+        service: emp.service,
+        position: emp.position
       }
     });
   } catch (error) {
@@ -134,7 +134,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ── GET /requests (all or filtered by service) ────────────────────────────────
+// ── GET /demandes (all or filtered by service) ────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const { service } = req.query;
@@ -146,14 +146,19 @@ router.get('/', async (req, res) => {
 
     // Mapping layer to ensure UI names match DB types
     const serviceMap = {
-      'Civil Status': 'extrait_naissance',
+      'Civil Status': 'certificat_naissance',
       'Residence': 'certificat_residence',
       'Mariage': 'certificat_mariage',
-      'Voirie': 'autorisation_voirie',
-      'extrait_naissance': 'extrait_naissance',
+      'Voirie': 'authorisation_de_voirie',
+      'Technical Service': 'authorisation_de_voirie',
+      'Service Technique': 'authorisation_de_voirie',
+      'Road Occupancy Permit': 'authorisation_de_voirie',
+      'autorisation de voirie': 'authorisation_de_voirie',
+      'authorisation_de_voirie': 'authorisation_de_voirie',
+      'autorisation_voirie': 'authorisation_de_voirie',
+      'certificat_naissance': 'certificat_naissance',
       'certificat_residence': 'certificat_residence',
-      'certificat_mariage': 'certificat_mariage',
-      'autorisation_voirie': 'autorisation_voirie'
+      'certificat_mariage': 'certificat_mariage'
     };
 
     const dbService = serviceMap[service] || service;
@@ -201,7 +206,7 @@ router.get('/my-requests/:employeeId', async (req, res) => {
     } else if (position.includes('mariage')) {
       documentTypes = ['certificat_mariage'];
     } else if (position.includes('voirie')) {
-      documentTypes = ['autorisation_voirie'];
+      documentTypes = ['authorisation_de_voirie'];
     }
 
     if (!documentTypes.length) {
@@ -217,7 +222,50 @@ router.get('/my-requests/:employeeId', async (req, res) => {
 
     if (error) return res.status(500).json({ message: error.message });
 
-    res.json({ count: demandes.length, requests: demandes });
+    // Auto-fill citizen_address from demandes_inscription → users → citizens (in priority order)
+    const enrichedDemandes = await Promise.all(demandes.map(async (d) => {
+      // Ensure nin is explicitly handled if it's missing or named differently
+      const citizenNin = d.nin || d.citizen_nin;
+      if (d.citizen_address || !citizenNin) return { ...d, nin: citizenNin };
+      try {
+        // 1st priority: demandes_inscription (type_document = certificat_residence) has the adresse
+        const { data: inscriptData } = await supabase
+          .from('demandes_inscription')
+          .select('adresse')
+          .eq('nin', citizenNin)
+          .eq('type_document', 'certificat_residence')
+          .order('date_demande', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (inscriptData?.adresse) {
+          return { ...d, citizen_address: inscriptData.adresse, adresse: inscriptData.adresse, nin: citizenNin };
+        }
+
+        // 2nd priority: users table
+        const { data: userData } = await supabase
+          .from('users')
+          .select('adresse')
+          .eq('nin', citizenNin)
+          .maybeSingle();
+        if (userData?.adresse) {
+          return { ...d, citizen_address: userData.adresse, adresse: userData.adresse, nin: citizenNin };
+        }
+
+        // 3rd priority: citizens table
+        const { data: citizenData } = await supabase
+          .from('citizens')
+          .select('adresse, address')
+          .eq('nin', citizenNin)
+          .maybeSingle();
+        if (citizenData?.adresse || citizenData?.address) {
+          const addr = citizenData.adresse || citizenData.address;
+          return { ...d, citizen_address: addr, adresse: addr, nin: citizenNin };
+        }
+      } catch (_) { /* silently ignore */ }
+      return { ...d, nin: citizenNin };
+    }));
+
+    res.json({ count: enrichedDemandes.length, requests: enrichedDemandes });
 
   } catch (error) {
     console.error('Error in my-requests:', error);
@@ -229,7 +277,7 @@ router.get('/my-requests/:employeeId', async (req, res) => {
 router.get('/all-requests', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM requests ORDER BY created_at DESC`
+      `SELECT * FROM demandes ORDER BY created_at DESC`
     );
     res.json({ count: rows.length, requests: rows });
   } catch (error) {
@@ -241,7 +289,7 @@ router.get('/all-requests', async (req, res) => {
 router.get('/status/:status', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM requests WHERE status = $1 ORDER BY created_at DESC`,
+      `SELECT * FROM demandes WHERE status = $1 ORDER BY created_at DESC`,
       [req.params.status]
     );
     res.json({ count: rows.length, requests: rows });
@@ -272,99 +320,113 @@ router.put('/:requestId/read', async (req, res) => {
 // ── GET /requests/:requestId ──────────────────────────────────────────────────
 router.get('/:requestId', async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT * FROM requests WHERE id = $1`,
-      [req.params.requestId]
-    );
-    if (rows.length === 0) {
+    const { requestId } = req.params;
+    const { data, error } = await supabase
+      .from('demandes')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (error || !data) {
       return res.status(404).json({ message: 'Demande non trouvée' });
     }
-    res.json(rows[0]);
+    res.json(data);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// ── PUT /requests/:requestId/validate-with-pdf ────────────────────────────────
-router.put('/:requestId/validate-with-pdf', async (req, res) => {
+// ── PUT /requests/validate-with-pdf/:requestId ────────────────────────────────
+router.put('/validate-with-pdf/:requestId', async (req, res) => {
   try {
-    const { status, document_status, comment, employee_id } = req.body;
+    const { requestId } = req.params;
+    const { status, documentStatus, comment, position } = req.body;
 
-    // Fetch request
-    const { rows: reqRows } = await pool.query(
-      `SELECT * FROM requests WHERE id = $1`,
-      [req.params.requestId]
-    );
-    if (reqRows.length === 0) {
+    // 1. Fetch request from Supabase
+    const { data: request, error: fetchErr } = await supabase
+      .from('demandes')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (fetchErr || !request) {
       return res.status(404).json({ message: 'Demande non trouvée' });
     }
-    const request = reqRows[0];
 
-    // Fetch employee
-    let emp = null;
-    if (employee_id) {
-      const { rows: empRows } = await pool.query(
-        `SELECT id, first_name, last_name, email, service, position
-         FROM employees WHERE id = $1`,
-        [employee_id]
-      );
-      emp = empRows[0] ?? null;
-    }
+    // Map status from frontend (English) to DB (French) for 'demandes' table
+    const statusMap = {
+      'completed': 'termine',
+      'rejected': 'refuse',
+      'in-progress': 'en_cours',
+      'pending': 'en_attente'
+    };
+    const dbStatus = statusMap[status] || status;
 
-    // Update request
-    const { rows: updated } = await pool.query(
-      `UPDATE requests
-       SET status          = $1,
-           document_status = COALESCE($2, document_status),
-           comment         = COALESCE($3, comment),
-           assigned_by     = COALESCE($4, assigned_by),
-           updated_at      = NOW()
-       WHERE id = $5
-       RETURNING *`,
-      [
-        status,
-        document_status ?? null,
-        comment         ?? null,
-        employee_id     ?? null,
-        req.params.requestId
-      ]
-    );
-    const updatedRequest = updated[0];
+    // 2. Update request in Supabase (table 'demandes' uses 'status' and 'commentaire')
+    const now = new Date().toISOString();
+    const isResidence = request.type_document === 'certificat_residence';
+    const dateExpiration = isResidence
+      ? new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString()   // 6 months
+      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();      // 1 year
 
-    console.log('Validation demande:', updatedRequest.id, '| Statut:', status);
+    const { data: updated, error: updateErr } = await supabase
+      .from('demandes')
+      .update({
+        status: dbStatus,
+        commentaire: comment || request.commentaire,
+        date_traitement: dbStatus === 'termine' ? now : request.date_traitement,
+        date_expiration: dbStatus === 'termine' ? dateExpiration : request.date_expiration
+      })
+      .eq('id', requestId)
+      .select()
+      .single();
 
-    // Generate PDF (pass the flat row directly)
+    if (updateErr) throw updateErr;
+
+    console.log('Validation demande (Supabase):', requestId, '| Statut:', dbStatus);
+
+    // 3. Generate PDF
     let pdfBuffer = null;
     try {
-      pdfBuffer = await PDFService.generateCitizenPDF(updatedRequest);
-      console.log('PDF généré:', pdfBuffer.length, 'bytes');
+      const { generateCertificatePDF } = await import('./emailServices.js');
+      pdfBuffer = await generateCertificatePDF(updated);
+      console.log('PDF généré via emailServices:', pdfBuffer?.length, 'bytes');
     } catch (pdfError) {
-      console.error('PDF Error:', pdfError.message);
+      console.error('PDF Generation Error:', pdfError.message);
     }
 
-    // Send email
+    // 4. Send email (Fetch email from users table if missing)
     let emailSent = false;
-    if ((status === 'completed' || status === 'rejected') && pdfBuffer && updatedRequest.citizen_email) {
+    let targetEmail = updated.email || updated.citizen_email;
+
+    if (!targetEmail && updated.user_id) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', updated.user_id)
+        .single();
+      if (userData) targetEmail = userData.email;
+    }
+
+    if (pdfBuffer && targetEmail && status === 'completed') {
       try {
         await emailService.sendValidationEmailWithPDF(
-          updatedRequest.citizen_email,
-          updatedRequest.citizen_first_name,
-          updatedRequest.subject,
-          status,
-          emp ? `${emp.first_name} ${emp.last_name}` : 'Service municipal',
-          comment,
+          targetEmail,
+          updated.prenom || updated.firstName || 'Citoyen',
+          updated.type_document || 'Certificat de Naissance',
+          position || 'Service État Civil',
+          comment || 'Votre demande a été traitée avec succès.',
           pdfBuffer
         );
         emailSent = true;
-        console.log('Email envoyé');
       } catch (emailError) {
-        console.error('Email Error:', emailError.message);
+        console.error('Email Transmission Error:', emailError.message);
       }
     }
 
     res.json({
       message: 'Demande traitée',
-      request: updatedRequest,
+      request: updated,
       pdfGenerated: !!pdfBuffer,
       emailSent
     });
@@ -378,7 +440,7 @@ router.put('/:requestId/validate-with-pdf', async (req, res) => {
 router.get('/:requestId/download-pdf', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM requests WHERE id = $1`,
+      `SELECT * FROM demandes  WHERE id = $1`,
       [req.params.requestId]
     );
     if (rows.length === 0) {
@@ -398,21 +460,52 @@ router.get('/:requestId/download-pdf', async (req, res) => {
 // ── PUT /requests/:requestId/status ───────────────────────────────────────────
 router.put('/:requestId/status', async (req, res) => {
   try {
+    const { requestId } = req.params;
     const { status, comment } = req.body;
-    const { rows } = await pool.query(
-      `UPDATE requests
-       SET status     = $1,
-           comment    = COALESCE($2, comment),
-           updated_at = NOW()
-       WHERE id = $3
-       RETURNING *`,
-      [status, comment ?? null, req.params.requestId]
-    );
-    if (rows.length === 0) {
+
+    // Map status to match DB conventions if needed
+    const statusMap = {
+      'completed': 'termine',
+      'rejected': 'refuse',
+      'in-progress': 'en_traitement',
+      'pending': 'en_attente',
+      'approuve': 'termine'
+    };
+    const dbStatus = statusMap[status] || status;
+
+    const updatePayload = {
+      status: dbStatus,
+      commentaire: comment || undefined
+    };
+    if (dbStatus === 'termine') {
+      // Fetch type_document to determine expiration period
+      const { data: demandeInfo } = await supabase
+        .from('demandes')
+        .select('type_document')
+        .eq('id', requestId)
+        .single();
+
+      const isResidence = demandeInfo?.type_document === 'certificat_residence';
+      updatePayload.date_traitement = new Date().toISOString();
+      updatePayload.date_expiration = isResidence
+        ? new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString()   // 6 months
+        : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();      // 1 year
+    }
+
+    const { data, error } = await supabase
+      .from('demandes')
+      .update(updatePayload)
+      .eq('id', requestId)
+      .select();
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
       return res.status(404).json({ message: 'Demande non trouvée' });
     }
-    res.json({ message: 'Statut mis à jour', request: rows[0] });
+
+    res.json({ message: 'Statut mis à jour', request: data[0] });
   } catch (error) {
+    console.error('Update status error:', error.message);
     res.status(500).json({ message: error.message });
   }
 });
@@ -421,7 +514,7 @@ router.put('/:requestId/status', async (req, res) => {
 router.delete('/:requestId', async (req, res) => {
   try {
     const { rowCount } = await pool.query(
-      `DELETE FROM requests WHERE id = $1`,
+      `DELETE FROM demandes WHERE id = $1`,
       [req.params.requestId]
     );
     if (rowCount === 0) {
